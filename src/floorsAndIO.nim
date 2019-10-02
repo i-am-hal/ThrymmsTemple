@@ -264,9 +264,9 @@ template colorWrite*[T: string | char](text:T, color:ForegroundColor) =
 
 #Changes a character in the room's position
 proc moveChar*(chr:char, startX, startY, endX, endY: int, color=fgWhite) =
-    stdout.setCursorPos(startX, startY+1) #Move to 1st pos
+    stdout.setCursorPos(startX, startY) #Move to 1st pos
     stdout.write '.' #Write in replacement empty
-    stdout.setCursorPos(endX, endY+1) #Move to 2nd pos
+    stdout.setCursorPos(endX, endY) #Move to 2nd pos
     colorWrite(chr, color) #write in the character
 
 #Draws in the room for the game, colors text
