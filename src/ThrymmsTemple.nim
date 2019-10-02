@@ -15,6 +15,8 @@ proc main =
   stdout.eraseScreen() #Clear the screen before starting
   stdout.setCursorPos(0,0)
   storyMode()
+  #Show the cursor
+  stdout.showCursor()
 
 #Start the main function when being ran
 when isMainModule:

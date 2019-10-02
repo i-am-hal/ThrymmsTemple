@@ -6,7 +6,7 @@ of an acarde-esc game mode.
 Author: Alastar Slater
 Date: 9/28/2019
 ]#
-import floorsAndIO, player, terminal #, movement
+import floorsAndIO, player, terminal, movement
 
 #[
 NUMBER OF CHESTS:
@@ -57,7 +57,14 @@ proc storyMode* =
         
         let chr = getch() #get character input from user
 
+        #If player presses escape, exit
+        if chr == '\x1b': break
+
         #Set cursor at end of room
         stdout.setCursorPos(0, len(room.room) + 1)
         stdout.write chr
+
+        #Handles the player's keypresses
+        chr.handleKeypress(player, floor, done, draw, level)
+    
         

@@ -193,11 +193,12 @@ proc newRoom(floor:var Floor, w, h, roomType: int): Room =
         
 #Loads in a room that doesn't yet exist
 proc loadRoom(self:var Floor, x, y: int) =
+    #Load in the room if not loaded in
     if self.floor[y][x] of UnloadedRoom:
         #Get the type of room from the unloaded room
         let roomType = (UnloadedRoom self.floor[y][x]).roomType
         #Generate the room
-        self.floor[y][x] = self.newRoom(rand(1..15), rand(1..15), roomType)
+        self.floor[y][x] = self.newRoom(rand(3..15), rand(3..15), roomType)
         self.nonGenRooms -= 1 #Decrease number of non generated rooms
 
 #Sets up room, player for a new room
@@ -229,11 +230,25 @@ proc spawnPlayer*(self:var Floor, player:var Player) =
     #Mark that we made the first room
     self.genFirstRoom = true
 
+#Forward declare so nim doesn't complain
+proc moveChar*(chr:char, startX, startY, endX, endY:int, color=fgWhite)
+
+#Moves some character on screen to a different location
+proc moveChar*(self:var Floor, player:var Player, chr:char, startX, startY, endX, endY:int, color=fgWhite) =
+    #Removes last place on screen
+    (Room self.floor[player.roomY][player.roomX]).room[startY][startX] = '.'
+    #Draw in character to new place
+    (Room self.floor[player.roomY][player.roomX]).room[endY][endX] = chr
+
+    #Moves the character on screen
+    chr.moveChar(startX, startY+1, endX, endY+1, color)
+
+
 #Generates a new floor to use
 proc newFloor*: Floor =
     let #Generate width + height
-        height = rand(3..15)
-        width  = rand(3..15)
+        height = rand(2..11)
+        width  = rand(2..11)
 
     Floor(height:height, width:width, nonGenRooms:height*width,
         floor:mkFloorList(width, height))

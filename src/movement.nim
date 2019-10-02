@@ -30,8 +30,7 @@ proc upDoor(room:Room, x, y:int): bool = checkChar(room, x, y, 'D', modY= -1)
 proc upStair(room:Room, x, y:int): bool = checkChar(room, x, y, '^', modY= -1)
 
 #Check if the spot the right is empty
-proc rightEmpty(room:Room, x, y:int): bool = 
-    x < len(room.room[0]) and room.room[y][x] == '.'
+proc rightEmpty(room:Room, x, y:int): bool = checkChar(room, x, y, '.', modX=1) 
 
 #Check if there is a door to the right
 proc rightDoor(room:Room, x, y:int): bool = checkChar(room, x, y, 'D', modX=1)

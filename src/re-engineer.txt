@@ -1,4 +1,0 @@
-Things needed to completely remake from scratch in floorsAndIO.nim:
-    1) RoomObj, and children UnloadedRoom, Room
-    2) Draw room, draw map
-    3) colorWrite(text, fgColor) 
