@@ -96,6 +96,7 @@ proc mkFloorList(width, height: int): seq[seq[RoomObj]] =
             #Ad a bunch of 8s in the middle
             for w in 1..width:
                 row.add UnloadedRoom(roomType: 8)
+
             row.add UnloadedRoom(roomType: 9) #right cap
         
         result.add row #Add on the row
@@ -151,9 +152,9 @@ proc newRoom(floor:var Floor, w, h, roomType: int): Room =
     if exits[1]: #if exit due east
         let
             y = int(len(room) / 2) #Middle row
-            x = 1                  #First column
+            x = len(room[0]) - 2 #First column
         
-        room[y][x-1] = 'D' #Draw in the door
+        room[y][x+1] = 'D' #Draw in the door
 
         #Filter out areas around the door
         allpos = allpos.filter(proc(pos:(int,int)):bool =
@@ -173,9 +174,9 @@ proc newRoom(floor:var Floor, w, h, roomType: int): Room =
     if exits[3]: #If exit due west
         let
             y = int(len(room) / 2) #Middle row
-            x = len(room[0]) - 2 #First column
+            x = 1 #First column
         
-        room[y][x+1] = 'D' #Draw in the door
+        room[y][x-1] = 'D' #Draw in the door
 
         #Filter out areas around the door
         allpos = allpos.filter(proc(pos:(int,int)):bool =
@@ -204,8 +205,8 @@ proc loadRoom(self:var Floor, x, y: int) =
 #Sets up room, player for a new room
 proc spawnPlayer*(self:var Floor, player:var Player) =
     let #Pick a random index for a random room
-        roomX = rand(0..self.width-1)
-        roomY = rand(0..self.height-1)
+        roomX = rand(0..(self.width-1))
+        roomY = rand(0..(self.height-1))
     
     self.loadRoom(roomX, roomY) #Loads in the room
 
@@ -243,6 +244,57 @@ proc moveChar*(self:var Floor, player:var Player, chr:char, startX, startY, endX
     #Moves the character on screen
     chr.moveChar(startX, startY+1, endX, endY+1, color)
 
+#Moves player into a new room so they have 'continuity'
+#exitFrom: 1-north, 2-east, 3-south, 4-west, else-center
+proc enterRoom*(self:var Floor, player:var Player, roomX, roomY, exitFrom:int) =
+    #Remove character from last position
+    (Room self.floor[roomY][roomX]).room[player.ypos][player.xpos] = '.'
+
+    #Load in the room we are now entering
+    self.loadRoom(player.roomX, player.roomY)
+
+    #Use this room for figuring positions
+    let room = (Room self.floor[player.roomY][player.roomX])
+
+    case exitFrom:
+        of 1: #Appear at top of room
+            let #Get the x and y coordinates
+                y = 1
+                x = int(len(room.room[y]) / 2)
+            #Save x,y pos.
+            player.xpos = x 
+            player.ypos = y
+        of 3: #Appear at bottom of screen
+            let #Get the x and y coordinates
+                y = len(room.room) - 2
+                x = int(len(room.room[y]) / 2)
+            #Save x,y pos.
+            player.xpos = x 
+            player.ypos = y
+        of 2: #Appear right
+            let #Get x,y coordinates
+                y = int(len(room.room) / 2)
+                x = len(room.room[y]) - 2
+            #Save positions
+            player.xpos = x
+            player.ypos = y
+        of 4: #Appear left 
+            let #Get x,y coordinates
+                y = int(len(room.room) / 2)
+                x = 1
+            #Save positions
+            player.xpos = x
+            player.ypos = y
+        else: #Otherwise, spawn in middle
+            let #Get x,y for middle
+                y = int(len(room.room) / 2)
+                x = int(len(room.room[y]) / 2)
+            #Save positions
+            player.xpos = x
+            player.ypos = y
+    
+    #Draw in this character into the new room
+    (Room self.floor[player.roomY][player.roomX]).room[player.ypos][player.xpos] = '@'
 
 #Generates a new floor to use
 proc newFloor*: Floor =
@@ -288,3 +340,9 @@ proc drawRoom*(room: Room) =
 #NO NOTHING RN
 proc drawMap*(floor: FLoor) = discard 0
 
+when isMainModule:
+    for y in mkFloorList(5, 5):
+        for x in y:
+            let roomType = (UnloadedRoom x).roomType
+            stdout.write $roomType, " "
+        stdout.write "\n"

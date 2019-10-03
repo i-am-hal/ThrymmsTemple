@@ -48,6 +48,9 @@ proc storyMode* =
         #Location in room & on screen
         #stdout.write("LEVEL: " & $level)
 
+        stdout.write("FX: ", player.roomX, " FY: ", player.roomY)
+        stdout.write(" FXLEN: ", len(floor.floor[0]), " FYLEN: ", len(floor.floor))
+
         #If we are told to draw the room, do so
         if draw == true:
             stdout.eraseScreen() #Clear the screen
@@ -60,11 +63,9 @@ proc storyMode* =
         #If player presses escape, exit
         if chr == '\x1b': break
 
-        #Set cursor at end of room
-        stdout.setCursorPos(0, len(room.room) + 1)
-        stdout.write chr
-
         #Handles the player's keypresses
         chr.handleKeypress(player, floor, done, draw, level)
+        #Get the new room
+        room = Room floor.floor[player.roomY][player.roomX]
     
         

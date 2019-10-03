@@ -20,6 +20,9 @@ proc leftEmpty(room:Room, x, y:int): bool = checkChar(room, x, y, '.', modX= -1)
 #If there is a door to the left 
 proc leftDoor(room:Room, x, y:int): bool = checkChar(room, x, y, 'D', modX= -1)
 
+#If there is a staricase to the left
+proc leftStair(room:Room, x, y:int): bool = checkChar(room, x, y, '^', modX= -1)
+
 #Check if the spot above the given coordenates is empty
 proc upEmpty(room:Room, x, y:int): bool = checkChar(room, x, y, '.', modY= -1)
 
@@ -35,11 +38,17 @@ proc rightEmpty(room:Room, x, y:int): bool = checkChar(room, x, y, '.', modX=1)
 #Check if there is a door to the right
 proc rightDoor(room:Room, x, y:int): bool = checkChar(room, x, y, 'D', modX=1)
 
+#Check if there is a staircase to the right
+proc rightStair(room:Room, x, y:int): bool = checkChar(room, x, y, '^', modX=1)
+
 #Check if the spot below the coordinates is empty space
 proc downEmpty(room:Room, x, y:int): bool = checkChar(room, x, y, '.', modY=1)
 
 #Check if there is a door below the coordinates given
 proc downDoor(room:Room, x, y:int): bool = checkChar(room, x, y, 'D', modY=1)
+
+#Check if there is a staircase downward
+proc downStair(room:Room, x,y:int): bool = checkChar(room, x, y, '^', modY= -1)
 
 #Deals with whatever action is associated with a keypress in the game
 proc handleKeypress*(key:char, player:var Player, floor:var Floor, done, draw:var bool, level:var int) =
@@ -48,8 +57,6 @@ proc handleKeypress*(key:char, player:var Player, floor:var Floor, done, draw:va
 
     stdout.setCursorPos(30,1)
     stdout.write("LAST KEY: " & key)
-    stdout.setCursorPos(41, 1)
-    stdout.write("-> " & $player.xpos & " " & $(len(room.room[0])-1))
 
     #If this is movement for player
     if key in "wasd":
@@ -62,7 +69,7 @@ proc handleKeypress*(key:char, player:var Player, floor:var Floor, done, draw:va
                 player.ypos -= 1 #Make the player move up one space
             
             #IF there is a door above, enter new room
-            #[elif upDoor(room, player.xpos, player.ypos):
+            elif upDoor(room, player.xpos, player.ypos):
                 draw = true #Tell program to draw new room
                 player.roomY -= 1 #Move up one room
                 #Move player into new room
@@ -74,7 +81,6 @@ proc handleKeypress*(key:char, player:var Player, floor:var Floor, done, draw:va
                 draw = true #Say we need to draw new room
                 floor = newFloor() #Make a new floor
                 floor.spawnPlayer(player) #Spawn player in  new room
-            ]#
         
         #If moving left check if there is a door or open space
         elif key == 'a':
@@ -85,33 +91,41 @@ proc handleKeypress*(key:char, player:var Player, floor:var Floor, done, draw:va
                 player.xpos -= 1 #Save change in x position
             
             #If there is a door to the left, move to the next room
-            #[elif leftDoor(room, player.xpos, player.ypos):
+            elif leftDoor(room, player.xpos, player.ypos):
                 draw = true #Say we will draw the room
                 player.roomX -= 1 #Move to room to the left
                 #Move into the corresponding room
                 floor.enterRoom(player, player.roomX+1, player.roomY, 2)
-            ]#
-        
+            
+            #If there is a staircase left, ascend a floor
+            elif leftStair(room, player.xpos, player.ypos):
+                draw = true #Draw the new room
+                floor = newFloor() #Make a new floor
+                floor.spawnPlayer(player) #Spawn in the player
+            
         #Move right, check if there is a door or empty space
         elif key == 'd':
-
             #If there is an empty space, move there
-            if checkChar(room, player.xpos, player.ypos, '.', modX=1): #rightEmpty(room, player.xpos, player.ypos):
-                stdout.write("rght")
-
+            if rightEmpty(room, player.xpos, player.ypos):
                 #Move player right one space
                 floor.moveChar(player, '@', player.xpos, player.ypos, player.xpos+1, player.ypos, fgCyan)
                 player.xpos += 1 #Save change in x
             
             #If there is a door to the right, enter room
-            #[elif rightDoor(room, player.xpos, player.ypos):
+            elif rightDoor(room, player.xpos, player.ypos):
                 draw = true #Draw in the next room
                 #Move us to the room to the right
                 player.roomX += 1
                 #Enter from the left
                 floor.enterRoom(player, player.roomX-1, player.roomY, 4)
-            ]#
-
+            
+            #If there is a stair to the right, ascend a floor
+            elif rightStair(room, player.xpos, player.ypos):
+                draw = true #Draw in the new room
+                floor = newFloor() #Create the new floor
+                #Spawn in the player
+                floor.spawnPlayer(player)
+            
         #Move down, check for door or empty space
         elif key == 's':
             #If there is empty spot, move down
@@ -121,12 +135,18 @@ proc handleKeypress*(key:char, player:var Player, floor:var Floor, done, draw:va
                 player.ypos += 1 #Save change in y
             
             #Enter the new room from the north
-            #[elif downDoor(room, player.xpos, player.ypos):
+            elif downDoor(room, player.xpos, player.ypos):
                 draw = true #Draw the next room in
                 player.roomY += 1 #Move down one room
                 #Enter the room
                 floor.enterRoom(player, player.roomX, player.roomY-1, 1)
-            ]#
+            
+            #If there is a staircase downward, create new floor
+            elif downStair(room, player.xpos, player.ypos):
+                draw = true #Draw in the new room
+                floor = newFloor() #Create the new floor
+                #Spawn in the player into the floor
+                floor.spawnPlayer(player)
         
     #The player opening up a map
     elif key == 'm':
