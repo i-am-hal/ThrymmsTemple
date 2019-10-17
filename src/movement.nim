@@ -7,7 +7,7 @@ Date: 9/28/2019
 ]#
 
 
-import player, floorsAndIO, terminal
+import playerAndObjs, floorsAndIO, terminal
 
 #Checks if there is a character in a certain direction
 proc checkChar(room:Room, x, y: int, chr: char, modX=0,modY=0): bool =
@@ -150,13 +150,21 @@ proc handleKeypress*(key:char, player:var Player, floor:var Floor, done, draw:va
         
     #The player opening up a map
     elif key == 'm':
-        stdout.setCursorPos(0,0) #Set position to 0,0
+        draw = true #Redraw room after
+        stdout.eraseScreen() #Clear the screen
+
+        stdout.setCursorPos(0,0)
+        stdout.write("ESC to exit) ")
+
+        stdout.setCursorPos(0,1) #Set position to 0,0
         colorWrite("Explored", fgWhite)
         stdout.write " - "
+        colorWrite("Exit", fgGreen) #Tell which is an exit
 
         drawMap(floor) #Draw out the map for the user
 
-        var chr = '\00' #Temp. var
-        #Wait until player enters esc character
-        while chr != '\x1b': chr = getch()
+        var chr = '\0' #Temp. var
 
+        #Wait until player enters esc character
+        while chr != '\x1b':
+            chr = getch()

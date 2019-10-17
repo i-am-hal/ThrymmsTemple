@@ -6,7 +6,9 @@ Author: Alastar Slater
 Date: 9/30/2019
 ]#
 
-import terminal, random, sequtils, player
+import terminal, random, sequtils, playerAndObjs
+
+randomize()
 
 #===[          FLOORS & ROOMS          ]===#
 
@@ -196,10 +198,13 @@ proc newRoom(floor:var Floor, w, h, roomType: int): Room =
 proc loadRoom(self:var Floor, x, y: int) =
     #Load in the room if not loaded in
     if self.floor[y][x] of UnloadedRoom:
-        #Get the type of room from the unloaded room
-        let roomType = (UnloadedRoom self.floor[y][x]).roomType
+        let
+            #Get the type of room from the unloaded room
+            roomType = (UnloadedRoom self.floor[y][x]).roomType
+            width    = rand(4..15) #Generate width + height of room
+            height   = rand(3..15)
         #Generate the room
-        self.floor[y][x] = self.newRoom(rand(3..15), rand(3..15), roomType)
+        self.floor[y][x] = self.newRoom(width, height, roomType)
         self.nonGenRooms -= 1 #Decrease number of non generated rooms
 
 #Sets up room, player for a new room
@@ -337,12 +342,39 @@ proc drawRoom*(room: Room) =
         #End the row
         stdout.write '\n'
 
-#NO NOTHING RN
-proc drawMap*(floor: FLoor) = discard 0
+#writes text in a color or style
+proc csWrite*[T: string | char](text:T, color=fgWhite, style: set[Style]={styleBright}) =
+    stdout.setForegroundColor(color) #Set color of foreground
+    writeStyled(text, style) #Writes text in this style
 
-when isMainModule:
-    for y in mkFloorList(5, 5):
-        for x in y:
-            let roomType = (UnloadedRoom x).roomType
-            stdout.write $roomType, " "
-        stdout.write "\n"
+#Checks if this char is in the room
+proc roomHasChar(room: Room, chr:char): bool =
+    #If we have this character return true
+    for row in room.room:
+        for rmChr in row:
+            if rmChr == chr:
+                return true
+    false #Otherwise return false
+
+#Draw in the map for convience to the user
+proc drawMap*(floor: FLoor) =
+    stdout.setCursorPos(0, 2) #Set cursor to draw the map
+    for row in floor.floor:
+        #Go through every object in this row for displaying
+        for roomObj in row:
+            #Write out the room as not explored
+            if roomObj of UnloadedRoom:
+                stdout.write ' ' 
+            
+            #If this room has the exit, color it yellow
+            elif roomObj of Room and roomHasChar(Room roomObj, '^'):
+                colorWrite('#', fgGreen)
+            
+            #Make the current room blink
+            elif roomObj of Room and roomHasChar(Room roomObj, '@'):
+                colorWrite("#", fgCyan)
+            
+            else: #Unimportant room
+                stdout.write('#')
+            
+        stdout.write '\n' #End line

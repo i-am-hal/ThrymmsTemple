@@ -14,7 +14,9 @@ proc main =
   stdout.setForegroundColor(fgWhite)
   stdout.eraseScreen() #Clear the screen before starting
   stdout.setCursorPos(0,0)
+
   storyMode()
+
   #Show the cursor
   stdout.showCursor()
 

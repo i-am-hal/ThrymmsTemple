@@ -6,7 +6,7 @@ of an acarde-esc game mode.
 Author: Alastar Slater
 Date: 9/28/2019
 ]#
-import floorsAndIO, player, terminal, movement
+import floorsAndIO, playerAndObjs, terminal, movement
 
 #[
 NUMBER OF CHESTS:
