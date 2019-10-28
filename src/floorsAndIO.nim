@@ -25,9 +25,10 @@ type
         height*, width*: int
         #The ascii version of the room itself
         room*: seq[seq[char]]
+        #All of the game obejcts in this room
+        objs*: seq[GameObject]
         #[
         mobs: seq[Monster]
-        objs: seq[Object]
         ]#
     
     #A floor is a series of rooms 
