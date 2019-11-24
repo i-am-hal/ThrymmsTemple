@@ -6,9 +6,8 @@ Author: Alastar Slater
 Date: 9/30/2019
 ]#
 
-import terminal, random, sequtils, playerAndObjs
+import math, terminal, random, sequtils, playerAndObjs, monsters
 
-randomize()
 
 #===[          FLOORS & ROOMS          ]===#
 
@@ -26,10 +25,9 @@ type
         #The ascii version of the room itself
         room*: seq[seq[char]]
         #All of the game obejcts in this room
-        objs*: seq[GameObject]
-        #[
-        mobs: seq[Monster]
-        ]#
+        objs*: seq[PointObject]
+        #All of the monsters in this room
+        mobs*: seq[Monster]
     
     #A floor is a series of rooms 
     Floor* = object
@@ -46,14 +44,20 @@ type
 
 #[    FLOOR & ROOM METHODS    ]# 
 
+#Calculates maximum number of chests of a room of height x width
+func numberOfChests(height, width:int): int =
+    let minimum = min(height, width)
+    #Return integer number of chests
+    int(ceil(minimum/2 - minimum/3))
+
 #Creates the ascii version of a w * h room
 proc mkAsciiRoom(width, height: int): seq[seq[char]] =
-    for h in 1..height:
+    for h in 1..height+1:
         #The column being made
         var column: seq[char] = @[]
 
         #If this is the first row
-        if h == 1 or h == height:
+        if h == 1 or h == height+1:
             column.add ' '
             #Add w '-' between caps
             for w in 1..width:
@@ -61,7 +65,7 @@ proc mkAsciiRoom(width, height: int): seq[seq[char]] =
             column.add ' '
         
         #If this isn't the last row
-        elif h < height:
+        elif h <= height:
             column.add '|'
             #Add empty spaces between walls
             for w in 1..width:
@@ -107,12 +111,20 @@ proc mkFloorList(width, height: int): seq[seq[RoomObj]] =
 #Returns a list of all possible positions in the room
 proc getAllPos(w, h: int): seq[(int, int)] =
     #Add every possuble x, y coordinate
-    for y in 1..h:
+    for y in 1..h-1:
         for x in 1..w:
             result.add (x, y)
 
+#Randomly picks a position
+proc getPos(positions:var seq[(int,int)]): (int, int) =
+    var retPos = sample(positions)
+    #Remove the used position
+    positions = positions.filter(proc(pos:(int,int)): bool = pos != retPos)
+    #Return the given position
+    retPos
+
 #Returns a new room instance
-proc newRoom(floor:var Floor, w, h, roomType: int): Room =
+proc newRoom(floor:var Floor, w, h, roomType: int, level:var int, storyMode:bool): Room =
     #[Room types: [NORTH, EAST, SOUTH, WEST]
         0
 
@@ -121,25 +133,31 @@ proc newRoom(floor:var Floor, w, h, roomType: int): Room =
         7 8 9
     ]#
 
-    #Figure out what exits this room has
-    let exits =
-        case roomType:
-            of 1: [false, true, true, false]   #E, S
-            of 2: [false, true, true, true]    #E, S, W
-            of 3: [false, false, true, true]   #S, W
-            of 4: [true, true, true, false]    #N, E, S
-            of 5: [true, true, true, true]     #N, E, S, W
-            of 6: [true, false, true, true]    #N, S, W
-            of 7: [true, true, false, false]   #N, E
-            of 8: [true, true, false, true]    #N, E, W
-            of 9: [true, false, false, true]   #N, W
-            else: [false, false, false, false] #No exits
+    let 
+        #Check if has monsters in this room (60% of rooms have monsters)
+        hasMonsters = rand(1.. 5) >= 3
+        #Max number of chests in this room
+        numChests = numberOfChests(h, w)
+
+        #Figure out what exits this room has
+        exits =
+            case roomType:
+                of 1: [false, true, true, false]   #E, S
+                of 2: [false, true, true, true]    #E, S, W
+                of 3: [false, false, true, true]   #S, W
+                of 4: [true, true, true, false]    #N, E, S
+                of 5: [true, true, true, true]     #N, E, S, W
+                of 6: [true, false, true, true]    #N, S, W
+                of 7: [true, true, false, false]   #N, E
+                of 8: [true, true, false, true]    #N, E, W
+                of 9: [true, false, false, true]   #N, W
+                else: [false, false, false, false] #No exits
     
     var
         #Make ascii version of room
         room = mkAsciiRoom(w, h)
         #Get all of the possible positions
-        allpos = getAllPos(w, h)
+        allpos = getAllPos(len(room[0])-2, len(room)-2)
     
     if exits[0]: #If exit due north
         let
@@ -186,17 +204,75 @@ proc newRoom(floor:var Floor, w, h, roomType: int): Room =
             not (pos in @[(x,y+1),(x,y),(x,y-1)]))
     
     #If not first room, and no stairs, try to gen stairs
-    if floor.genFirstRoom and not floor.hasStairs and rand(1..floor.nonGenRooms) == 1:
+    if floor.genFirstRoom and not floor.hasStairs and rand(1.. floor.nonGenRooms) == 1:
+        let #Get x & y coords of stairs
+            y = int(len(room) / 2)
+            x = int(len(room[0]) / 2)
         #Draw in the staircase since we got it
-        room[int(len(room) / 2)][int(len(room[0]) / 2)] = '^'
+        room[y][x] = '^'
         #Note that we have stairs now
         floor.hasStairs = true
+        #Remove positions around stairs (left + right of stairs)
+        allpos =  allpos.filter(proc(pos:(int,int)):bool =
+            not (pos in @[(x,y), (x-1, y), (x+1, y)]))
+
+    var
+        #All of the game objects in this room (chests, any petunias)
+        objs: seq[PointObject] = @[]
+        mobs: seq[Monster] = @[] #All of the monsters in the room
+
+    #Go and try to generate each chest in the room
+    for _ in 1.. numChests:
+        #Stop the loop as soon as there aren't enough positions
+        if len(allpos) == 0: break
+
+        let
+            #Flip coin as to generate chest 
+            genChest = rand(0.. 1)
+            isMimic = rand(1.. 5) #40% of being mimic
+        
+        #If we are generating a chest, do so
+        if genChest == 1 and isMimic > 2:              #[or not hasMonsters:]# 
+            #Creates the chest object to add
+            let chest = newChest(allpos.getPos())
+            objs.add(PointObject chest) #Add the chest to list of objects in room
+            room[chest.pos[1]][chest.pos[0]] = '#' #Draw in chest
+    
+        #If we are spawning a mimic into the room (can spawn in any room)
+        elif genChest == 1 and isMimic <= 2:           #[and hasMonsters]#
+            let mimic = newMimic(allpos.getPos()) #Create the mimic for this room
+            mobs.add(Monster mimic) #Add the mimic to the list of monsters
+            room[mimic.pos[1]][mimic.pos[0]] = '#'
+    
+    #If this room has monsters in it 
+    if hasMonsters:
+        let maxMonsters = rand(0.. 4) #At max, 4 monsters
+
+        #Generate each monster in the room
+        for _ in 1.. maxMonsters:
+            #Stop making monsters if there are no more positions
+            if len(allpos) == 0: break
+
+            #Spawn monsters based on what floor it is
+            if storyMode == true:
+                #Create the monster to add to the room
+                let monster = spawnMob(level, allpos.getPos())
+                mobs.add monster #Add the monster to list of monsters
+                #Draw in the monster to this room
+                room[monster.pos[1]][monster.pos[0]] = monster.chr
+            
+            #If not story mode, spawn any monster
+            elif not storyMode:
+                #Randomly picks and spawns a monster
+                let monster = randomMobSpawn(allpos.getPos())
+                #Draw in the monster into the room
+                room[monster.pos[1]][monster.pos[0]] = monster.chr
 
     #Return the new room instance
-    Room(height:h+2, width:w+2, room:room)
+    Room(height:h+2, width:w+2, room:room, objs:objs, mobs:mobs)
         
 #Loads in a room that doesn't yet exist
-proc loadRoom(self:var Floor, x, y: int) =
+proc loadRoom(self:var Floor, x, y: int, level:var int, story:bool) =
     #Load in the room if not loaded in
     if self.floor[y][x] of UnloadedRoom:
         let
@@ -205,16 +281,16 @@ proc loadRoom(self:var Floor, x, y: int) =
             width    = rand(4..15) #Generate width + height of room
             height   = rand(3..15)
         #Generate the room
-        self.floor[y][x] = self.newRoom(width, height, roomType)
+        self.floor[y][x] = self.newRoom(width, height, roomType, level, story)
         self.nonGenRooms -= 1 #Decrease number of non generated rooms
 
 #Sets up room, player for a new room
-proc spawnPlayer*(self:var Floor, player:var Player) =
+proc spawnPlayer*(self:var Floor, player:var Player, level:var int, story:bool) =
     let #Pick a random index for a random room
         roomX = rand(0..(self.width-1))
         roomY = rand(0..(self.height-1))
     
-    self.loadRoom(roomX, roomY) #Loads in the room
+    self.loadRoom(roomX, roomY, level, story) #Loads in the room
 
     let 
         #The room just generated
@@ -252,12 +328,12 @@ proc moveChar*(self:var Floor, player:var Player, chr:char, startX, startY, endX
 
 #Moves player into a new room so they have 'continuity'
 #exitFrom: 1-north, 2-east, 3-south, 4-west, else-center
-proc enterRoom*(self:var Floor, player:var Player, roomX, roomY, exitFrom:int) =
+proc enterRoom*(self:var Floor, player:var Player, roomX, roomY, exitFrom:int, level:var int, story:bool) =
     #Remove character from last position
     (Room self.floor[roomY][roomX]).room[player.ypos][player.xpos] = '.'
 
     #Load in the room we are now entering
-    self.loadRoom(player.roomX, player.roomY)
+    self.loadRoom(player.roomX, player.roomY, level, story)
 
     #Use this room for figuring positions
     let room = (Room self.floor[player.roomY][player.roomX])
@@ -338,6 +414,10 @@ proc drawRoom*(room: Room) =
             if chr == '@':
                 colorWrite('@', fgCyan)
             
+            #If a monster, color red
+            elif chr in "ZKNmW":
+                colorWrite(chr, fgRed)
+            
             else: #Otherwise, just write in character
                 stdout.write chr
         #End the row
@@ -379,3 +459,13 @@ proc drawMap*(floor: FLoor) =
                 stdout.write('#')
             
         stdout.write '\n' #End line
+
+#Write out a list of text to the screen
+proc writeDialog*(dialog:seq[string]) =
+    var line = 1 #Start at line 1
+
+    for text in dialog:
+        stdout.setCursorPos(45, line) #Set cursor to this line
+        stdout.write(text)            #Write line of text
+        inc(line)                     #Move to next line
+

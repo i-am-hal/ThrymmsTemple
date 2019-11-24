@@ -28,28 +28,31 @@ Examples:
 #Player goes from floor 1 -> 18, to then fight Malachi
 proc storyMode* =
     var
-        player: Player  #The player object for this game
+        player: Player = newPlayer(0, 0)  #The player object for this game
         #The first floor the player is on
         floor: Floor = newFloor()
-    
-    #Spawns the player in a random room
-    floor.spawnPlayer(player)
-
-    var
-        #The current room the player is in
-        room  = Room floor.floor[player.roomY][player.roomX] 
+        dialog: seq[string] #All text relating to stuff that happened
         level = 1 #What floor the player is on
         draw  = true #If the room needs to be drawn
         done  = false #If the player is done or not
     
+    #Spawns the player in a random room (true - is story mode)
+    floor.spawnPlayer(player, level, true)
+
+    #The current room the player is in
+    var room  = Room floor.floor[player.roomY][player.roomX] 
+
+    player.health = 100
+    player.potions = 1
+    
     while not done:
         stdout.setCursorPos(0,0) #Center cursor
         stdout.eraseLine() #Erase line at 0,0
-        #Location in room & on screen
-        #stdout.write("LEVEL: " & $level)
+        #Floor level, health of player, and number of potions
+        stdout.write("Level: " & $level & " | Hp: " & $(player.health) & " | Potions: " & $player.potions)
 
-        stdout.write("FX: ", player.roomX, " FY: ", player.roomY)
-        stdout.write(" FXLEN: ", len(floor.floor[0]), " FYLEN: ", len(floor.floor))
+        #stdout.write("FX: ", player.roomX, " FY: ", player.roomY)
+        #stdout.write(" FXLEN: ", len(floor.floor[0]), " FYLEN: ", len(floor.floor)-1)
 
         #If we are told to draw the room, do so
         if draw == true:
@@ -58,13 +61,14 @@ proc storyMode* =
             draw = false
             continue
         
+        dialog.writeDialog() #Write in dialog
         let chr = getch() #get character input from user
 
         #If player presses escape, exit
         if chr == '\x1b': break
 
-        #Handles the player's keypresses
-        chr.handleKeypress(player, floor, done, draw, level)
+        #Handles the player's keypresses                     (This is story mode)
+        chr.handleKeypress(dialog, player, floor, done, draw, level, story=true)
         #Get the new room
         room = Room floor.floor[player.roomY][player.roomX]
     

@@ -5,10 +5,12 @@ Author: Alastar Slater
 Date: 9/28/2019
 ]#
 
+from times import getTime, toUnix, nanosecond
 import terminal, gameModes, random
 
 proc main =
-  randomize() #Makes sure all seeds are random
+  let now = getTime() #Get current system time
+  randomize(now.toUnix * 1000000000 + now.nanosecond) #Makes sure all seeds are random
   stdout.hideCursor() #Hide the cursor
   #Make all the text white before starting
   stdout.setForegroundColor(fgWhite)

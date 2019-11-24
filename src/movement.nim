@@ -7,7 +7,7 @@ Date: 9/28/2019
 ]#
 
 
-import playerAndObjs, floorsAndIO, terminal
+import terminal, strutils, playerAndObjs, floorsAndIO, monsters
 
 #Checks if there is a character in a certain direction
 proc checkChar(room:Room, x, y: int, chr: char, modX=0,modY=0): bool =
@@ -48,18 +48,26 @@ proc downEmpty(room:Room, x, y:int): bool = checkChar(room, x, y, '.', modY=1)
 proc downDoor(room:Room, x, y:int): bool = checkChar(room, x, y, 'D', modY=1)
 
 #Check if there is a staircase downward
-proc downStair(room:Room, x,y:int): bool = checkChar(room, x, y, '^', modY= -1)
+proc downStair(room:Room, x,y:int): bool = checkChar(room, x, y, '^', modY=1)
 
 #Deals with whatever action is associated with a keypress in the game
-proc handleKeypress*(key:char, player:var Player, floor:var Floor, done, draw:var bool, level:var int) =
+proc handleKeypress*(keypress:char, dialog:var seq[string], player:var Player, floor:var Floor, done, draw:var bool, level:var int, story:bool) =
+    let key = keypress.toLowerAscii() #Make the current char lowercase
     #Get the current room to be looked at
     let room = Room (floor.floor[player.roomY][player.roomX])
 
-    stdout.setCursorPos(30,1)
-    stdout.write("LAST KEY: " & key)
+    #Say last key (DEBUGGING)
+    #stdout.setCursorPos(30,1)
+    #stdout.write("LAST KEY: " & key)
+
+    #If an action key was pressed: w,a,s,d,q
+    var actionKeyPress = false
 
     #If this is movement for player
     if key in "wasd":
+        #Mark that we had an action key press
+        actionKeyPress = true
+
         #Moving up, check if theres a door, or empty space
         if key == 'w':
             #If there is an empty space, move up
@@ -69,18 +77,18 @@ proc handleKeypress*(key:char, player:var Player, floor:var Floor, done, draw:va
                 player.ypos -= 1 #Make the player move up one space
             
             #IF there is a door above, enter new room
-            elif upDoor(room, player.xpos, player.ypos):
+            elif upDoor(room, player.xpos, player.ypos) and player.roomY > 0:
                 draw = true #Tell program to draw new room
                 player.roomY -= 1 #Move up one room
                 #Move player into new room
-                floor.enterRoom(player, player.roomX, player.roomY+1, 3)
+                floor.enterRoom(player, player.roomX, player.roomY+1, 3, level, story)
             
             #If there is a staircase above, go to next floor
             elif upStair(room, player.xpos, player.ypos):
                 inc level #Go to next level
                 draw = true #Say we need to draw new room
                 floor = newFloor() #Make a new floor
-                floor.spawnPlayer(player) #Spawn player in  new room
+                floor.spawnPlayer(player, level, story) #Spawn player in  new room
         
         #If moving left check if there is a door or open space
         elif key == 'a':
@@ -95,13 +103,13 @@ proc handleKeypress*(key:char, player:var Player, floor:var Floor, done, draw:va
                 draw = true #Say we will draw the room
                 player.roomX -= 1 #Move to room to the left
                 #Move into the corresponding room
-                floor.enterRoom(player, player.roomX+1, player.roomY, 2)
+                floor.enterRoom(player, player.roomX+1, player.roomY, 2, level, story)
             
             #If there is a staircase left, ascend a floor
             elif leftStair(room, player.xpos, player.ypos):
                 draw = true #Draw the new room
                 floor = newFloor() #Make a new floor
-                floor.spawnPlayer(player) #Spawn in the player
+                floor.spawnPlayer(player, level, story) #Spawn in the player
             
         #Move right, check if there is a door or empty space
         elif key == 'd':
@@ -117,14 +125,14 @@ proc handleKeypress*(key:char, player:var Player, floor:var Floor, done, draw:va
                 #Move us to the room to the right
                 player.roomX += 1
                 #Enter from the left
-                floor.enterRoom(player, player.roomX-1, player.roomY, 4)
+                floor.enterRoom(player, player.roomX-1, player.roomY, 4, level, story)
             
             #If there is a stair to the right, ascend a floor
             elif rightStair(room, player.xpos, player.ypos):
                 draw = true #Draw in the new room
                 floor = newFloor() #Create the new floor
                 #Spawn in the player
-                floor.spawnPlayer(player)
+                floor.spawnPlayer(player, level, story)
             
         #Move down, check for door or empty space
         elif key == 's':
@@ -139,14 +147,14 @@ proc handleKeypress*(key:char, player:var Player, floor:var Floor, done, draw:va
                 draw = true #Draw the next room in
                 player.roomY += 1 #Move down one room
                 #Enter the room
-                floor.enterRoom(player, player.roomX, player.roomY-1, 1)
+                floor.enterRoom(player, player.roomX, player.roomY-1, 1, level, story)
             
             #If there is a staircase downward, create new floor
             elif downStair(room, player.xpos, player.ypos):
                 draw = true #Draw in the new room
                 floor = newFloor() #Create the new floor
                 #Spawn in the player into the floor
-                floor.spawnPlayer(player)
+                floor.spawnPlayer(player, level, story)
         
     #The player opening up a map
     elif key == 'm':
@@ -168,3 +176,82 @@ proc handleKeypress*(key:char, player:var Player, floor:var Floor, done, draw:va
         #Wait until player enters esc character
         while chr != '\x1b':
             chr = getch()
+    
+    #If the player is using a health potion
+    elif key == 'f':
+        #If has potions, and gained health <= 100, just add 5
+        if player.potions > 0 and player.health + 5 <= 100:
+            player.health += 5  #Add some health to the player
+            player.potions -= 1 #Subtract a potion
+
+        #Tell player that they are at full health
+        elif player.potions > 0 and player.health == 100:
+            dialog.add "You are at full health!"
+        
+        #If has potions, and gained health > 100, make health 100
+        elif player.potions > 0 and player.health + 5 > 100:
+            player.health = 100 #Set player to max health
+            player.potions -= 1 #Remove a potion
+        
+        else: #No potions
+            dialog.add "You don't have potions!"
+
+    #Interact with any shop keeps / open chests
+    elif key == 'e' and len(room.objs) > 0:
+        let
+            #Get the position of the player so we can check surrounding areas around player
+            targetPos =
+                #Spots left and right of player and above + below player
+                @[(player.xpos-1, player.ypos), (player.xpos+1, player.ypos),
+                (player.xpos, player.ypos-1), (player.xpos, player.ypos+1)]
+
+        #Go through each object to get those within range
+        for obj_index in 0 .. high(room.objs):
+            let obj = room.objs[obj_index] #Get object to check if this is in range
+
+            #If in range, and is chest, open and modify the chest
+            if obj.pos in targetPos and obj of Chest:
+                draw = true                            #Note to redraw the room
+                var chest = Chest room.objs[obj_index] #The currently focused on chest
+                openChest(chest, player)               #Opens the chest
+    
+    #[ MONSTER ACTIVITY ]#
+
+    #If player pressed key that is an 'action' that takes a 'turn'
+    # then allow the monsters to move closer and/or attack
+    if actionKeyPress == true:
+        #the current room being modified
+        var currRoom = Room (floor.floor[player.roomY][player.roomX])
+
+        #Go through each mob and have it either move, or attack
+        for mob in currRoom.mobs:
+            let
+                #Get the target locations of this monster
+                targetLocations = mob.getTargetLocations((player.xpos, player.ypos))
+                canAttack = mob.pos in targetLocations #If monster in target locations (i.e. can attack)
+            
+            #If this is a mimic, if it isn't awake and can attack, become active
+            if mob of Mimic and not (Mimic mob).awake and canAttack:
+                (Mimic mob).awake = true  #Make the mimic active
+                (Mimic mob).chr = 'm'     #Chance character to lowercase m
+                let pos = (Mimic mob).pos #Get position of mimic
+                #Draw in character again in red but as an 'm'
+                floor.moveChar(player, 'm', pos[0], pos[1], pos[0], pos[1], color=fgRed)
+            
+            #[ MONSTER ATTACK ]#
+            
+            #[ MONSTER MOVEMENT ]#
+
+            #If Monster cannot move just yet, decrement speed until they can move again
+            elif mob.speed > 0:
+                mob.speed -= 1
+            
+            #Regular monster movement, move closer to attack player, reset move timer
+            elif mob of Monster and mob.speed == 0:
+                #MOVE MONSTER
+                mob.speed = mob.speedRefresh #Reset speed counter
+                
+
+            
+
+
