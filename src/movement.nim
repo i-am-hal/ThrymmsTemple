@@ -305,6 +305,11 @@ proc handleKeypress*(keypress:char, dialog:var seq[string], player:var Player, f
         else: #No potions
             dialog.add "You don't have potions!"
 
+    #If the player is wanting to look at their inventory
+    elif key == 'i':
+        draw = true              #Mark that we must redraw everything
+        player.playerInventory() #Open the inventory for the player
+
     #Interact with any shop keeps / open chests
     elif key == 'e' and len(room.objs) > 0:
         let

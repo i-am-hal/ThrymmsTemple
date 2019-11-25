@@ -462,11 +462,11 @@ proc drawMap*(floor: FLoor) =
         stdout.write '\n' #End line
 
 #Write out a list of text to the screen
-proc writeDialog*(dialog:seq[string]) =
+proc writeDialog*(dialog:seq[string], column=45) =
     var line = 1 #Start at line 1
 
     for text in dialog:
-        stdout.setCursorPos(45, line) #Set cursor to this line
+        stdout.setCursorPos(column, line) #Set cursor to this line
         stdout.write(text)            #Write line of text
         inc(line)                     #Move to next line
 

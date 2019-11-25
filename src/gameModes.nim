@@ -42,8 +42,8 @@ proc storyMode* =
     #The current room the player is in
     var room  = Room floor.floor[player.roomY][player.roomX] 
 
-    player.health = 100
-    player.potions = 1
+    #Give player 5 potions at the start
+    player.potions = 5
     
     while not done:
         stdout.setCursorPos(0,0) #Center cursor

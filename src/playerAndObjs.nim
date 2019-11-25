@@ -6,7 +6,7 @@ Author: Alastar Slater
 Date: 9/28/2019
 ]#
 
-import random, terminal, strformat, strutils  
+import random, terminal, strformat, strutils
 
 #randomize()
 
@@ -264,15 +264,41 @@ proc newChest*(position:(int, int), number:int): Chest =
     #Create a new chest object for the game
     Chest(number:number, pos:position, potions:genPotions(), gold:genGold(), weapon:pickWeapon(), armor:pickArmor())
 
+#===[   FUNCTIONS FOR UI   ]===#
+
+#prints text for a game item
+proc sayItemText[T:Armor | Weapon | GameItem](x:T, prefix:string, secPrefix="| ", shPostfix="") =
+    #If this is a weapon, print out text for it
+    if x of Weapon:
+        #Give the name of the weapon
+        echo prefix & fmt"{x.name}" & shPostfix #(Add on second header prefix) 
+        #The type of weapon this is
+        var weaponType = "Ranged"
+
+        #If this is a melee weapon, make it say so
+        if (Weapon x).melee:
+            weaponType = "Melee"
+
+        #Give info on weapon
+        echo secPrefix & fmt"(Uses: {itemUses(Armor x)}, Dmg: {int((Weapon x).dmg)}, Type: {weaponType}, Accuracy: 1/{(Weapon x).chance})"
+    
+    #Generate the text relating to this piece of armor
+    elif x of Armor:
+        #Print the prefix then the info 
+        echo prefix & fmt"{x.name} (Uses: {itemUses(Armor x)})" & shPostFix  
+    
+    #Generate the text for none
+    else:
+        echo prefix & "None"
 
 #===[   CHEST USER INTERFACE   ]===#
 
 #Write dialog text to screen
-proc writeDialog(dialog:seq[string]) =
+proc writeDialog(dialog:seq[string], column=45) =
     var line = 1 #Starting line
 
     for text in dialog:
-        stdout.setCursorPos(45, line) #Setup line position
+        stdout.setCursorPos(column, line) #Setup line position
         stdout.write(text)            #Write out text
         inc(line)                     #Move to next line
 
@@ -282,22 +308,22 @@ proc itemUses*[A:Armor | Weapon](item: A): int = int(100 / item.degrade)
 #Draws the UI of the chest
 proc drawChestUI(self:var Chest) =
     #[
-     _______________________________
-    | CHEST                         |
-    |=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=|
-    | ESC: Exit                     |
-    | F: take potions  E: take gold |
-    | R: take weapon  C: take armor |
-    |              ~~~              |
-    | Gold: <GOLD>                  |
-    | Potions: <POTIONS>            |
-    | Armor: <ARMOR NAME>           |
-    |   (Uses:<USES>)               |
-    | Weapon: <WEAPON NAME>         |
-    |   (Mod:<MOD>, Uses:<USES>)    |
-     -------------------------------
+         _______________________________
+        | CHEST                         |
+        |=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=|
+        | ESC: Exit                     |
+        | F: take potions  E: take gold |
+        | R: take weapon  C: take armor |
+        |              ~~~              |
+        | Gold: <GOLD>                  |
+        | Potions: <POTIONS>            |
+        | Armor: <ARMOR NAME>           |
+        |   (Uses:<USES>)               |
+        | Weapon: <WEAPON NAME>         |
+        |   (Mod:<MOD>, Uses:<USES>)    |
+         -------------------------------
     ]#
-    echo " _____________________________________"
+    echo " ___________________________________________________"
     echo fmt"| CHEST {self.number} |"
     echo "|========="
     echo "| ESC: Exit                     "
@@ -309,28 +335,12 @@ proc drawChestUI(self:var Chest) =
     echo fmt"| Potions: {self.potions}"                                        #Show number of health potions
 
     #[ SHOW STATS OF ARMOR ]#
-
-    #If this is armor, say it's stats
-    if self.armor of Armor:
-        #Give name of the armor + uses
-        echo fmt"| Armor: {self.armor.name} (Uses: {itemUses(Armor self.armor)})"  
-
-    else: #No armor, has no stats
-        echo "| Armor: None"
+    sayItemText(self.armor, "| Armor: ")
 
     #[ SHOW STATS OF WEAPON ]#
+    sayItemText(self.weapon, "| Weapon: ", "| ")
 
-    #If this is actually a weapon, say it's stats
-    if self.weapon of Weapon:
-        #Give the name of the weapon
-        echo fmt"| Weapon: {self.weapon.name}"                                     
-        #Give info on weapon
-        echo fmt"|  (Uses: {itemUses(Armor self.weapon)}, Mod: {int((Weapon self.weapon).dmg)}, Chance: 1/{(Weapon self.weapon).chance})"
-    
-    else: #No stats, say is nothing
-        echo "| Weapon: None"
-
-    echo " -------------------------------------"
+    echo " ---------------------------------------------------"
 
 #This is the top level ui of the chest
 proc openChest*(self:var Chest, player:var Player) =
@@ -411,11 +421,204 @@ proc openChest*(self:var Chest, player:var Player) =
 
         #Draw the ui so the user can see any changes
         self.drawChestUI()
-        dialog.writeDialog() #Write all dialog to screen
+        dialog.writeDialog(column=54) #Write all dialog to screen
 
         chr = getch().toLowerAscii() #Get character input (in lowercase)
         dialog = @[] #Empty dialog
 
 #===[   INVENTORY USER INTERFACE   ]===#
 
-#
+#Writes out the description for the player to read
+proc readItemDesc(x:GameItem) =
+    stdout.eraseScreen()     #Erase screen, reset cursor
+    stdout.setCursorPos(0,0)
+
+    echo "DESCRIPTION:"
+    echo "=============="
+
+    #split up the text by whitespace
+    let text = x.desc.splitWhitespace()
+
+    var
+        wordLimit = 11
+        words = 1
+    
+    #Go through each word in the text
+    for word in text:
+        stdout.write(word & ' ') #Print out word
+
+        #If this is multiple of 15, print new line
+        if words mod wordLimit == 0:
+            stdout.write('\n')
+
+        inc(words) #Increment the number of words
+    
+    #Prompt before user exits
+    echo "\n\n(Press anything to exit.)"
+    discard getch()
+    
+#Draw the user interface for the player
+proc drawBagUI(self:var Player, select:var int) =
+    stdout.eraseScreen()     #Erase last screen image
+    stdout.setCursorPos(0,0) #Reset cursor position for drawing
+
+    echo " ___________________________________________________"
+    echo "| INVENTORY ] BAG"
+    echo "|==================================================="
+    echo "| Esc: Exit menu  W/S: Up/Down through selection"
+    echo "| R: Read item description  Enter: Equip item"
+    echo "| D: Destroy selected item"
+    echo "|"
+
+    let selectIndex = select - 1 #Index of the selected item
+
+    #Go through the selection of every item
+    for i in 0..len(self.inventory)-1:
+        let item = self.inventory[i] #Get the item from bag
+
+        #If this is the selected item, change second header postfix
+        if selectIndex == i:
+            item.sayItemText(fmt"| {i+1}: ", "|  ", shPostfix=" (*)")
+        
+        else: #If this item not selected, have unselected item
+            item.sayItemText(fmt"| {i+1}: ", "|  ", shPostfix=" ()")
+
+    echo " ---------------------------------------------------"
+
+#The bag of the user, used for managing items
+proc playerBag(self:var Player) =
+    var
+        chr = '\0'    #The character the user gave as input
+        selection = 1 #The selection made by user
+
+    #Keep this menu open until the player wants to stop
+    while true:
+        self.drawBagUI(selection)    #Draw the user interface for the user
+        chr = getch().toLowerAscii() #get next character input, save as lowercase character
+        
+        #If user is done with menu, close out of it
+        if chr == '\x1b':
+            break
+        
+        #If the user wants to equip this item
+        elif chr == '\r':
+            let item = self.inventory[selection - 1] #Get item from inventory
+            self.inventory.delete(selection - 1)     #Remove item from inventory
+
+            #If selection > 1, decrease by one
+            if selection > 1: selection -= 1
+
+            #If the item is a weapon, equip it as a weapon
+            if item of Weapon:
+                let equippedWeapon = self.weapon #Save equipped weapon for now
+                self.weapon = item               #Give the weapon to the player
+
+                #If this is actually a weapon, add it to bag
+                if item of Weapon and equippedWeapon.name != "None":
+                    self.inventory.add equippedWeapon
+            
+            #If this item is armor, equip it
+            elif item of Armor:
+                let equippedArmor = self.armor #Save equipped armor for now
+                self.armor = item              #Give the armor to the player
+
+                #If this is actually armor, add it to the bag
+                if item of Armor and equippedArmor.name != "None":
+                    self.inventory.add equippedArmor
+        
+        #if the player wants to read the description of the selected item
+        elif chr == 'r' and len(self.inventory) > 0:
+            #Read the selected item's description
+            readItemDesc(self.inventory[selection - 1])
+        
+        #If user goes up, decrease selection by one
+        elif chr == 'w' and selection > 1:
+            selection -= 1
+        
+        #If user goes down, increase selection by one
+        elif chr == 's' and selection < len(self.inventory):
+            selection += 1
+        
+        #If user deletes current item
+        elif chr == 'd' and len(self.inventory) > 0:
+            #Ddecrease selection by one
+            if selection > 1:
+                selection -= 1
+            
+            #Remove this item from the inventory
+            self.inventory.delete(selection-1)
+
+#Draw in the interface for the inventory
+proc drawInventoryUI(self:var Player) =
+    #[
+     _____________
+    | INVENTORY
+    |============
+    | Esc: Exit menu
+    | B: Open bag
+    |
+    | Gold:
+    | Health:
+    | <WEAPON TEXT>
+    | <ARMOR TEXT>
+     ------------------
+    ]#
+    #Clear screen and set cursor positions
+    stdout.eraseScreen()
+    stdout.setCursorPos(0, 0)
+
+    echo " ___________________________________________________"
+    echo "| INVENTORY"
+    echo "|==================================================="
+    echo "| Esc: Exit menu"
+    echo "| B: Open bag  R: Move weapon to bag"
+    echo "| C: Move armor to bag"
+    echo "|"
+    echo fmt"| Gold: {self.gold}"
+    echo fmt"| Health: {self.health}"
+    echo fmt"| Potions: {self.potions}"
+
+    #[ SHOW STATS OF ARMOR ]#
+    sayItemText(self.armor, "| Armor: ")
+
+    #[ SHOW STATS OF WEAPON ]#
+    sayItemText(self.weapon, "| Weapon: ", "| ")
+
+    echo " ---------------------------------------------------"
+
+#The player inventory
+proc playerInventory*(self:var Player) =
+    var
+        chr = '\0'          #Character input from the user
+        dialog: seq[string] #All of the dialog
+
+    #Continue menu until the user is done
+    while true:
+        self.drawInventoryUI()        #Draw the UI for the player
+        dialog.writeDialog(column=54) #Write out all dialog
+        chr = getch().toLowerAscii()  #Get input from the user as a single character
+        dialog = @[]                  #Clear out dialog list
+
+        #If player presses escape, exit menu
+        if chr == '\x1b':
+            break
+        
+        #If the player wants to look into the bag, open it
+        elif chr == 'b':
+            self.playerBag()
+        
+        #If the player wants to move weapon to bag
+        elif chr == 'r' and len(self.inventory) < MAX_BAG_LENGTH:
+            self.inventory.add self.weapon               #Add the weapon to bag
+            self.weapon = GameItem(name:"None", desc:"") #Give player none as weapon
+        
+        #If the player wants to move armor to bag, and has space
+        elif chr == 'c' and len(self.inventory) < MAX_BAG_LENGTH:
+            self.inventory.add self.armor               #Add armor to bag
+            self.armor = GameItem(name:"None", desc:"") #Gibe player no armor
+        
+        #Tell user that their bag is full
+        elif chr in @['c', 'r'] and len(self.inventory) == MAX_BAG_LENGTH:
+            dialog.add "Your bag is full!"
+        
+
