@@ -6,7 +6,7 @@ Author: Alastar Slater
 Date: 9/30/2019
 ]#
 
-import math, terminal, random, sequtils, playerAndObjs, monsters
+import math, terminal, random, sequtils, strutils, playerAndObjs, monsters
 
 
 #===[          FLOORS & ROOMS          ]===#
@@ -217,9 +217,9 @@ proc newRoom(floor:var Floor, w, h, roomType: int, level:var int, storyMode:bool
             not (pos in @[(x,y), (x-1, y), (x+1, y)]))
 
     var
-        #All of the game objects in this room (chests, any petunias)
-        objs: seq[PointObject] = @[]
-        mobs: seq[Monster] = @[] #All of the monsters in the room
+        objs: seq[PointObject] = @[] #All of the game objects in this room (chests, any petunias)
+        mobs: seq[Monster] = @[]     #All of the monsters in the room
+        chestNum = 1                 #Number of chest
 
     #Go and try to generate each chest in the room
     for _ in 1.. numChests:
@@ -234,9 +234,10 @@ proc newRoom(floor:var Floor, w, h, roomType: int, level:var int, storyMode:bool
         #If we are generating a chest, do so
         if genChest == 1 and isMimic > 2:              #[or not hasMonsters:]# 
             #Creates the chest object to add
-            let chest = newChest(allpos.getPos())
+            let chest = newChest(allpos.getPos(), chestNum)
             objs.add(PointObject chest) #Add the chest to list of objects in room
             room[chest.pos[1]][chest.pos[0]] = '#' #Draw in chest
+            inc(chestNum) #Increment the number of chest this is
     
         #If we are spawning a mimic into the room (can spawn in any room)
         elif genChest == 1 and isMimic <= 2:           #[and hasMonsters]#
@@ -468,4 +469,36 @@ proc writeDialog*(dialog:seq[string]) =
         stdout.setCursorPos(45, line) #Set cursor to this line
         stdout.write(text)            #Write line of text
         inc(line)                     #Move to next line
+
+#Gets max number in the array of numbers
+proc max[T: int | float](arr:openarray[T]): T =
+    #Return first element if has length of one
+    if len(arr) == 1:
+        result = arr[0]
+
+    #If there is enough values to test
+    elif len(arr) >= 2:
+        result = arr[0] #Get first number as max
+
+        for index in 1 .. arr.high:
+            let num = arr[index] #Get number at this index
+
+            #We found next maximum, save it
+            if result < num:
+                result = num 
+
+#Clear out written dialog on screen
+proc clearDialog*(dialog:seq[string]) =
+    let
+        #Get the length of each dialog piece
+        textLengths = dialog.map proc(x:string):int = len(x)
+        #Longest length of text
+        maxLength = max(textLengths)
+    
+    var line = 1 #Start at line 1
+    
+    for _ in dialog:
+        stdout.setCursorPos(45, line)       #Set cursor to this line
+        stdout.write(' '.repeat(maxLength)) #Clear out text on this line w/ spaces
+        inc(line)                           #Move to next line
 

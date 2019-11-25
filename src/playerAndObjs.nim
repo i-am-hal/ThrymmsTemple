@@ -24,6 +24,7 @@ type
 
     #A chest in the game
     Chest* = ref object of PointObject 
+        number*: int   #Says this is the Nth chest in room
         potions*: int  #Number of potions in the chest
         gold*: int     #Amount of gold in the chest 
         #The armor and weapons in this chest
@@ -259,9 +260,9 @@ proc genGold*: int =
         else: result = val
 
 #Creates a new chest instance
-proc newChest*(position:(int, int)): Chest =
+proc newChest*(position:(int, int), number:int): Chest =
     #Create a new chest object for the game
-    Chest(pos:position, potions:genPotions(), gold:genGold(), weapon:pickWeapon(), armor:pickArmor())
+    Chest(number:number, pos:position, potions:genPotions(), gold:genGold(), weapon:pickWeapon(), armor:pickArmor())
 
 
 #===[   CHEST USER INTERFACE   ]===#
@@ -297,8 +298,8 @@ proc drawChestUI(self:var Chest) =
      -------------------------------
     ]#
     echo " _____________________________________"
-    echo "| CHEST |"
-    echo "|======="
+    echo fmt"| CHEST {self.number} |"
+    echo "|========="
     echo "| ESC: Exit                     "
     echo "| F: take potions  E: take gold "
     echo "| R: equip weapon  C: equip armor "
@@ -415,3 +416,6 @@ proc openChest*(self:var Chest, player:var Player) =
         chr = getch().toLowerAscii() #Get character input (in lowercase)
         dialog = @[] #Empty dialog
 
+#===[   INVENTORY USER INTERFACE   ]===#
+
+#

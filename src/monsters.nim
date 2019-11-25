@@ -6,7 +6,7 @@ Author: Alastar Slater
 Date: 10/27/2019
 ]#
 
-import random
+import random, math, sequtils
 
 type
     #The basic root monster in the game
@@ -112,4 +112,98 @@ proc randomMobSpawn*(pos:(int, int)): Monster =
     #Spawns corresponding monster with it's id
     getMonsterFromId(id, pos)
 
+
+#===[   MOVEMENT   ]===#
+
+#Gets the component vector between the start and end
+func componentVector(start:(int, int), final:(int, int)): (int, int) =
+    (final[0] - start[0], final[1] - start[1])
+
+#Gives raw distance between two points
+proc distanceToPoint(start:(int, int), final:(int, int)): int =
+    #Get the component vector that goes from start -> end
+    let vector = componentVector(start, final)
+
+    #Return the distance without evaluating the square root
+    return vector[0] ^ 2 + vector[1] ^ 2
+
+#Returns point that has shortest distance
+proc smallestDist(start:(int, int), targets:seq[(int, int)]): (int, int) =
+    result = targets[0]                       #Start with the first 
+    var dist = distanceToPoint(start, result) #Starting distance
+
+    #Go through the rest of the points to test
+    for i in 1.. targets.high():
+        let
+            endPoint = targets[i]  #Point to test
+            endPointDist = distanceToPoint(start, endPoint) #Distance from start -> endPoint
+        
+        #If new point has shorter distance, save it
+        if dist > endPointDist:
+            dist = endPointDist #Save new end point's distance
+            result = endPoint   #Save new end point
+
+#Preserved signs for moving up/down, left/right however
+# have each one have length of one
+func unitVector(vector:(int, int)): (int, int) =
+    func isNeg(x:int): bool = x < 0     #If the number is negative
+    func isPos(x:int): bool = isNeg(-x) #If the number is positive
+
+    #[ X ORDINATE ]#
+
+    if isNeg(vector[0]): #If is neg, x = -1
+        result[0] = -1
+    
+    elif isPos(vector[0]): #If pos, x = 1
+        result[0] = 1
+    
+    else: #Otherwise, x = 0
+        result[0] = 0
+    
+    #[ Y ORDINATE ]#
+
+    if isNeg(vector[1]): #if neg, y = -1
+        result[1] = -1
+    
+    elif isPos(vector[1]): #If pos, y = 1
+        result[1] = 1
+    
+    else: #Otherwise, y = 0
+        result[1] = 0
+
+#Get all of the positions that aren't being used
+proc removeUsedSpaces(allMobs:seq[Monster], positions:seq[(int, int)]): seq[(int, int)] =
+    for position in positions:
+        var posUsed = false #If this position is used
+        #Go through each monster to check position
+        for mob in allMobs:
+            #If this position is used, mark it as so
+            if mob.pos == position:
+                posUsed = true
+        
+        #Add the position if it is not used
+        if not posUsed:
+            result.add position 
+            
+#Get the unit vector used for moving the monster to it's next position to attack
+proc getMoveVector*(allMobs:seq[Monster], start:(int, int), targets:seq[(int, int)]): (int, int) =
+    let 
+        removeSelf = allMobs.filter(proc(x:Monster):bool = x.pos != start) #Removes mob that is this monster we are looking at
+        openSpaces = removeUsedSpaces(removeSelf, targets)                 #Get the spaces not used by other monsters
+    
+    #Return vector saying not to move, if no spaces are open
+    if len(openSpaces) == 0:
+        return (0, 0)
+    
+    let
+        targetPos = smallestDist(start, openSpaces)                        #Get the path with the shortest distance
+        pathVector = componentVector(start, targetPos)                     #Get the vector moving to this end position
+    result = unitVector(pathVector)                                        #Calculates the unit vector used for moving monster
+        
+#Return true if one of the ordinates is 0
+func simpleVec*(vector:(int, int)): bool =
+    #If one of the ordinates is 0, it is a simple vector
+    if vector[0] == 0 and vector[1] != 0 or vector[0] != 0 and vector[1] == 0:
+        return true
+    return false
 

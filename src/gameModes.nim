@@ -57,12 +57,15 @@ proc storyMode* =
         #If we are told to draw the room, do so
         if draw == true:
             stdout.eraseScreen() #Clear the screen
-            drawRoom(room)  #Draw in the room
+            drawRoom(room)       #Draw in the room
+            dialog.writeDialog() #Write out dialog
             draw = false
             continue
         
         dialog.writeDialog() #Write in dialog
-        let chr = getch() #get character input from user
+        let chr = getch()    #Get character input from user
+        dialog.clearDialog() #Clear out dialog on screen
+        dialog = @[]         #Clear out dialog list
 
         #If player presses escape, exit
         if chr == '\x1b': break
