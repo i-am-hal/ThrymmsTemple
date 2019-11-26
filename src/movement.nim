@@ -7,7 +7,7 @@ Date: 9/28/2019
 ]#
 
 
-import random, terminal, strutils, playerAndObjs, floorsAndIO, monsters
+import random, terminal, strutils, strformat, playerAndObjs, floorsAndIO, monsters
 
 #Checks if there is a character in a certain direction
 proc checkChar(room:Room, x, y: int, chr: char, modX=0,modY=0): bool =
@@ -108,7 +108,7 @@ proc moveMonster(floor:var Floor, player:var Player, allMobs:seq[Monster], mob:M
             floor.moveChar(player, mob.chr, x, y, x, y + 1, color=fgRed) #Move monster in room
 
 #This deals with the movement / actions of all mobs in the room
-proc roomMobMovement(floor: var Floor, player:var Player) =
+proc roomMobMovement(floor:var Floor, player:var Player) =
     var 
         #The current room being modified
         currRoom = Room (floor.floor[player.roomY][player.roomX])
@@ -149,6 +149,171 @@ proc roomMobMovement(floor: var Floor, player:var Player) =
         
         inc(index) #Increment index
 
+#Allows player to attack monsters around them
+proc playerAttack(floor:var Floor, player:var Player, dialog:var seq[string]) =
+    var
+        #Get the current room to get access to the monsters
+        currRoom = Room (floor.floor[player.roomY][player.roomX])
+        #Will hold all indexes of all monsters that will be attacked
+        mobIndexes: seq[int] = @[] 
+
+    #If this weapon from the player is some sort of melee weapon 
+    if not (player.weapon of Weapon) or player.weapon of Weapon and (Weapon player.weapon).melee:
+        #Get all of the areas around player to try attack surrounding monsters
+        let attackAreas = spacesAroundTarget((player.xpos, player.ypos))
+
+        #Get indexes of monsters being attacked
+        for i, mob in currRoom.mobs:
+            #If this is one of the attacked monsters, save index
+            if mob.pos in attackAreas:
+                mobIndexes.add i
+
+    
+    #If this is a ranged waepon, scan areas left/right, up/down of player
+    elif player.weapon of Weapon and not (Weapon player.weapon).melee:
+        var 
+            mobX = 0 #X,Y ordinates to change for searching for target mobs
+            mobY = 0
+            foundMob = false #Flag for loop to say if we have found mob yet
+
+        let 
+            rightBound = len(currRoom.room[0]) - 1 #Right bound (x value for right wall)
+            bottomBound = len(currRoom.room) - 1   #Lower bound (y value for bottom wall)
+        
+        mobX = player.xpos-1 #Setup for the search
+        mobY = player.ypos
+        #Search left of the player to find any mobs
+        while mobX > 0 and not foundMob:
+            #Go through each mob to see if they have this position
+            for i, mob in currRoom.mobs:
+                #If we found the mob, save index
+                if mob.pos == (mobX, mobY):
+                    foundMob = true        #Say we found the mob, break out
+                    mobIndexes.add i #Add index of this monster
+
+            dec(mobX) #Move left one more position
+        
+        mobX = player.xpos+1 #Setup for next search (right)
+        foundMob = false     #Reset flag on if we found a mob
+        #Search to the right of player to find mobs
+        while mobX < rightBound and not foundMob:
+            #Go through each mob for matching position
+            for i, mob in currRoom.mobs:
+                #if we found mob, save index
+                if mob.pos == (mobX, mobY):
+                    foundMob = true        #Say we found mob, break out
+                    mobIndexes.add i #Add index of this monster
+
+            inc(mobX) #Move right one space
+        
+        mobY = player.ypos-1 #Setup for search upward
+        mobX = player.xpos
+        foundMob = false    
+        #Search upward for mobs in way
+        while mobY > 0 and not foundMob:
+            #Find blocking mob
+            for i, mob in currRoom.mobs:
+                #if found mob, save index
+                if mob.pos == (mobX, mobY):
+                    foundMob = false       
+                    mobIndexes.add i #Save index
+            
+            dec(mobY) #Move up
+        
+        mobY = player.ypos+1 #Setup for next search downward
+        foundMob = false
+        #Search downwards for mobs in way
+        while mobY < bottomBound and not foundMob:
+            #Find blocked mob
+            for i, mob in currRoom.mobs:
+                #Found mob, save index
+                if mob.pos == (mobX, mobY):
+                    foundMob = false
+                    mobIndexes.add i #Save index
+            
+            inc(mobY) #Move down
+        
+    #==[ ATTACK MONSTERS, MELEE ]==#
+
+    #Go through each monster so it can be attacked
+    for index in mobIndexes:
+        let mob = currRoom.mobs[index] #The current monster being attacked
+
+        #[ CHECK IF WEAPON DIED ]#
+
+        #If the armor has no more health, remove it, tell user about it
+        if player.weapon of Weapon and (Weapon player.weapon).health <= 0:
+            dialog.add "Your weapon broke!"                #Give the user the alert
+            player.weapon = GameItem(name:"None", desc:"") #Remove the weapon from the player
+
+        #[ TRY TO ATTACK THIS MONSTER ]#
+
+        #If in some fasion, this is some melee weapon, use it to attack
+        if not (player.weapon of Weapon) or (Weapon player.weapon).melee:
+            #If actually a weapon, try to hit monster
+            if player.weapon of Weapon:
+                let
+                    #Get 1/chance likelyhood of hitting the monster
+                    chance = (Weapon player.weapon).chance
+                    #The damadge to add onto the damadge of the player
+                    modifier = (Weapon player.weapon).dmg
+
+                #If the player hit, then attack with playerDmg + weaponDmg
+                if rand(chance) == 0:
+                    #Allow the modifier to be a float, subtract integer amount
+                    currRoom.mobs[index].health -= int(float(player.dmg) + modifier)
+                    #Tells player the mob that has been struck
+                    dialog.add fmt"You hit a {mob.name}" 
+                
+                else: #Tell player they missed
+                    dialog.add fmt"You missed the {mob.name}!"
+
+            #Deal default damadge, if no weapon equipped
+            elif rand(0.. 1) == 1:
+                currRoom.mobs[index].health -= player.dmg
+                #Tells player the mob that has been struck
+                dialog.add fmt"You hit a {mob.name}!" 
+            
+            else: #Tell player that they missed
+                dialog.add fmt"You missed the {mob.name}!"
+        
+        else: #Otherwise, this is some ranged weapon
+            let
+                chance = (Weapon player.weapon).chance   #1/chance likelyhood of hitting
+                modifier = (Weapon player.weapon).dmg    #Modifier used for dealing damadge
+                degrade = (Weapon player.weapon).degrade #Amount weapon degrades by
+
+            #If the player hits this monster, state so
+            if rand(chance) == 0:
+                #Deal an integer amount of damage to monster
+                currRoom.mobs[index].health -= int(modifier)
+                #Degrade the weapon of the player
+                (Weapon player.weapon).health -= degrade
+                #Tell the user what they hit
+                dialog.add fmt"You hit a {mob.name}"
+            
+            else: #Otherwise, if you (the player) missed
+                dialog.add fmt"You missed the {mob.name}"
+    
+#Remove all dead monsters from the room
+proc removeDeadMobs(floor:var Floor, player:var Player) =
+    var
+        #Get the current room to get access to the monsters
+        currRoom = Room (floor.floor[player.roomY][player.roomX])
+        index = 0  #Index into the mobs
+
+    #Go through each monster to check if they are dead
+    while index < len(currRoom.mobs):
+        let mob = currRoom.mobs[index] #get the current monster
+
+        #Monster dead, remove it
+        if mob.health <= 0:
+            currRoom.mobs.delete(index) #Remove monster from room
+            #Remove this monster from the room
+            floor.moveChar(player, '.', mob.pos[0], mob.pos[1], mob.pos[0], mob.pos[1])
+            dec(index) #Decrease index by one
+
+        inc(index) #Move to next monster
 
 #Deals with whatever action is associated with a keypress in the game
 proc handleKeypress*(keypress:char, dialog:var seq[string], player:var Player, floor:var Floor, done, draw:var bool, level:var int, story:bool) =
@@ -265,6 +430,12 @@ proc handleKeypress*(keypress:char, dialog:var seq[string], player:var Player, f
                 #Spawn in the player into the floor
                 floor.spawnPlayer(player, level, story)
         
+    #If the player is trying to attack monsters around them
+    elif key == 'q':
+        actionKeyPress = true              #Say this is an action key press
+        floor.playerAttack(player, dialog) #Allow the player to atack monsters around them
+        floor.removeDeadMobs(player)       #Remove all dead monsters from room
+
     #The player opening up a map
     elif key == 'm':
         draw = true #Redraw room after
@@ -329,8 +500,6 @@ proc handleKeypress*(keypress:char, dialog:var seq[string], player:var Player, f
                 var chest = Chest room.objs[obj_index] #The currently focused on chest
                 openChest(chest, player)               #Opens the chest
     
-    #[ MONSTER ACTIVITY ]#
-
     #If player pressed key that is an 'action' that takes a 'turn'
     # then allow the monsters to move closer and/or attack
     if actionKeyPress == true:

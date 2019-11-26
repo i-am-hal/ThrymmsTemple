@@ -42,12 +42,13 @@ type
     #A weapon object
     Weapon* = ref object of Armor
         dmg*: float #Damadge dealt 
-        chance: int #%chance of hitting (1/chance)
+        chance*: int #%chance of hitting (1/chance)
         melee*: bool #If this is or is not a melee weapon
     
     #Tthe base player object
     Player* = object
         health*: int  #The amount of health th eplayer has
+        dmg*: int     #Default damadge dealt by user without weapon
         xpos*, ypos*: int #The x and y coordinates of the player
         roomX*, roomY*: int #Room player is in (x,y coordinates for room)
         weapon*: GameItem #Equipped weapon
@@ -70,7 +71,7 @@ proc newWeapon*[T:int | float64](name="", desc="", degrade, dmg:T, chance:int, m
 
 #Creates a new player object for the game
 proc newPlayer*(x, y: int): Player =
-    Player(health: 15, xpos: x, ypos: y, weapon:GameItem(name:"None", desc:""), armor:GameItem(name:"None", desc:""))
+    Player(health: 15, dmg:5, xpos: x, ypos: y, weapon:GameItem(name:"None", desc:""), armor:GameItem(name:"None", desc:""))
 
 #=[     ITEM DECLARATIONS     ]=#
 

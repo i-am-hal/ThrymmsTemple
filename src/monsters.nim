@@ -11,6 +11,7 @@ import random, math, sequtils
 type
     #The basic root monster in the game
     Monster* = ref object of RootObj
+        name*: string      #Name of this creature
         pos*: (int, int)   #Position of this monster in the room
         chr*: char         #Character to represent this monster
         speed*: int        #How many turns of player it takes to move
@@ -24,30 +25,35 @@ type
         awake*: bool
 
 #Creates a new blank monster
-func newMonster*(pos:(int,int), chr: char, speed, health, dmg, chance: int): Monster =
+func newMonster*(pos:(int,int), name:string, chr: char, speed, health, dmg, chance: int): Monster =
     #Creates a new monster object
-    Monster(pos:pos, chr:chr, speed:speed, speedRefresh:speed, health:health, dmg:dmg, chance:chance)
+    Monster(pos:pos, name:name, chr:chr, speed:speed, speedRefresh:speed, health:health, dmg:dmg, chance:chance)
 
 #===[   SIMPLER MONSTERS   ]===#
 
 #Creates a new zombie, simple monster
-func newZombie*(pos:(int,int)): Monster = newMonster(pos, 'Z', speed=2, health=11, dmg=5, chance=3)
+func newZombie*(pos:(int,int)): Monster = newMonster(pos, "Zombie", 'Z', speed=2, health=11, dmg=5, chance=3)
 
 #Create a new ker, simple monster, 50% of hitting target
-func newKer*(pos:(int,int)): Monster = newMonster(pos, 'K', speed=0, health=6, dmg=2, chance=2)
+func newKer*(pos:(int,int)): Monster = newMonster(pos, "Ker", 'K', speed=0, health=6, dmg=2, chance=2)
 
 #Create a new nymph, %25 of hitting target
-func newNymph*(pos:(int,int)): Monster = newMonster(pos, 'N', speed=0, health=6, dmg=3, chance=4)
+func newNymph*(pos:(int,int)): Monster = newMonster(pos, "Nymph", 'N', speed=0, health=6, dmg=3, chance=4)
 
 #Creates a mimic, not as simple, 50% accuracy
-func newMimic*(pos:(int,int)): Mimic = Mimic(pos:pos, chr:'#', speed:1, speedRefresh:1, health:10, dmg:7, chance:2, awake:false)
+func newMimic*(pos:(int,int)): Mimic =
+    Mimic(pos:pos, chr:'#', name:"Mimic", speed:1, speedRefresh:1, health:10, dmg:7, chance:2, awake:false)
 
 #===[   MOVEMENT   ]===#
+
+#Gets the spaces around the given position
+proc spacesAroundTarget*(pos:(int, int)): seq[(int, int)] =
+    @[(pos[0]-1, pos[1]), (pos[0]+1, pos[1]), (pos[0], pos[1]+1), (pos[0], pos[1]-1)]
 
 #All the target locations of a regular monster
 proc defaultTargetLocations(mob:Monster, pos:(int, int)): seq[(int, int)] =
     #Positions left of, right of, above, and below of player
-    @[(pos[0]-1, pos[1]), (pos[0]+1, pos[1]), (pos[0], pos[1]-1), (pos[0], pos[1]+1)]
+    spacesAroundTarget(pos)
 
 #Get locations just out of reach of the player
 proc warlockTargetLocations(pos:(int, int)): seq[(int, int)] =
@@ -206,4 +212,5 @@ func simpleVec*(vector:(int, int)): bool =
     if vector[0] == 0 and vector[1] != 0 or vector[0] != 0 and vector[1] == 0:
         return true
     return false
+
 
