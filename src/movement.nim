@@ -108,7 +108,7 @@ proc moveMonster(floor:var Floor, player:var Player, allMobs:seq[Monster], mob:M
             floor.moveChar(player, mob.chr, x, y, x, y + 1, color=fgRed) #Move monster in room
 
 #This deals with the movement / actions of all mobs in the room
-proc roomMobMovement(floor:var Floor, player:var Player) =
+proc roomMobMovement(floor:var Floor, player:var Player, dialog:var seq[string]) =
     var 
         #The current room being modified
         currRoom = Room (floor.floor[player.roomY][player.roomX])
@@ -135,6 +135,25 @@ proc roomMobMovement(floor:var Floor, player:var Player) =
             discard 0
         
         #[ MONSTER ATTACK ]#
+
+        #Default monster attack (include mimic when awake)
+        elif canAttack or canAttack and mob of Mimic and (Mimic mob).awake:
+            let
+                chance = mob.chance    #1/chance likelyhood of hitting player
+                dmg = mob.dmg          #Amount to hurt player by when hit
+                hitRoll = rand(chance) #Roll if monster hit player
+            
+            #If attack hit, but player has armor, degrade armor
+            if hitRoll == 0 and player.armor of Armor:
+                #Deggrade armor of the player
+                (Armor player.armor).health -= (Armor player.weapon).degrade
+                dialog.add fmt"You were hit by a {mob.name}!" #Tell user they were hit by a monster
+                dialog.add "Your armor degraded!" #Tell user their armor degraded
+            
+            #If attack hit, but player has no armor, take away health
+            elif hitRoll == 0 and not (player.armor of Armor):
+                player.health -= dmg #Take away this amount of health
+                dialog.add fmt"You were dealt {dmg} damage by {mob.name}!" #Tell amount damaged by
         
         #[ MONSTER MOVEMENT ]#
 
@@ -168,7 +187,6 @@ proc playerAttack(floor:var Floor, player:var Player, dialog:var seq[string]) =
             if mob.pos in attackAreas:
                 mobIndexes.add i
 
-    
     #If this is a ranged waepon, scan areas left/right, up/down of player
     elif player.weapon of Weapon and not (Weapon player.weapon).melee:
         var 
@@ -248,8 +266,12 @@ proc playerAttack(floor:var Floor, player:var Player, dialog:var seq[string]) =
 
         #[ TRY TO ATTACK THIS MONSTER ]#
 
+        #If not an active mimic, like DON'T HURT IT
+        if mob of Mimic and not (Mimic mob).awake:
+            discard 0
+
         #If in some fasion, this is some melee weapon, use it to attack
-        if not (player.weapon of Weapon) or (Weapon player.weapon).melee:
+        elif not (player.weapon of Weapon) or (Weapon player.weapon).melee:
             #If actually a weapon, try to hit monster
             if player.weapon of Weapon:
                 let
@@ -503,7 +525,7 @@ proc handleKeypress*(keypress:char, dialog:var seq[string], player:var Player, f
     #If player pressed key that is an 'action' that takes a 'turn'
     # then allow the monsters to move closer and/or attack
     if actionKeyPress == true:
-        floor.roomMobMovement(player)
+        floor.roomMobMovement(player, dialog)
 
             
 
