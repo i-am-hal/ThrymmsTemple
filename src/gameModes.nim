@@ -6,7 +6,7 @@ of an acarde-esc game mode.
 Author: Alastar Slater
 Date: 9/28/2019
 ]#
-import floorsAndIO, playerAndObjs, terminal, movement
+import floorsAndIO, playerAndObjs, terminal, movement, strutils
 
 #[
 NUMBER OF CHESTS:
@@ -24,6 +24,34 @@ Examples:
 ]#
 
 
+
+#Tells the player that they died
+proc playerDied =
+    stdout.eraseScreen()
+    centerText("You Died.", fgRed, true)
+
+#This is used to ask if player really wants to quit session
+proc quitGame: bool =
+    let 
+        size = terminalSize()        #Size of the terminal window
+        quitText = "(Y)es / (N)o"    #Text for what key to press to quit
+    stdout.eraseScreen()             #Erase the entire screen
+    var chr: char                    #Keypress of the player
+
+    centerText("Quit the Game?") #Bring up prompt
+    
+    #Set cursor position for the quitText
+    stdout.setCursorPos(int(size[0]/2) - int(len(quitText)/2), int(size[1]/2)+1)
+    stdout.write(quitText) #Print out the quit text
+
+    #Keep getting key presses until its Y or N
+    while chr != 'y' and chr != 'n': chr = getch() 
+
+    #If yes, stop, we should quit
+    if chr == 'y': return true
+    #Otherwise, return false, don't stop
+    else: return false
+
 #This is the story mode for the game
 #Player goes from floor 1 -> 18, to then fight Malachi
 proc storyMode* =
@@ -39,36 +67,57 @@ proc storyMode* =
     #Spawns the player in a random room (true - is story mode)
     floor.spawnPlayer(player, level, true)
 
-    #The current room the player is in
-    var room  = Room floor.floor[player.roomY][player.roomX] 
+    var 
+        #The current room the player is in
+        room  = Room floor.floor[player.roomY][player.roomX] 
+        #The size of the terminal window
+        windowSize = terminalSize()
 
-    #Give player 5 potions at the start
-    player.potions = 5
+    #Give player 2 potions at the start
+    player.potions = 2
     
     while not done:
         stdout.setCursorPos(0,0) #Center cursor
         stdout.eraseLine() #Erase line at 0,0
+
+        #[ CHECK IF PLAYER DIED ]#
+
+        #Check if player is dead, if so, say they died :(((
+        if player.health <= 0:
+            done = true  #Mark that player is dead
+            playerDied() #Tell the player that they died
+            break        #Exit out of game loop
+
+        #[ GAME LOOP ]#
+
         #Floor level, health of player, and number of potions
         stdout.write("Level: " & $level & " | Hp: " & $(player.health) & " | Potions: " & $player.potions)
 
-        #stdout.write("FX: ", player.roomX, " FY: ", player.roomY)
-        #stdout.write(" FXLEN: ", len(floor.floor[0]), " FYLEN: ", len(floor.floor)-1)
+        #Get the current size of the terminal, to check if there were changes
+        let new_window_size = terminalSize()
 
         #If we are told to draw the room, do so
-        if draw == true:
-            stdout.eraseScreen() #Clear the screen
-            drawRoom(room)       #Draw in the room
-            dialog.writeDialog() #Write out dialog
+        if draw == true or windowSize != new_window_size:
+            #If window size changed, update, hide cursor
+            if windowSize != new_window_size:
+                windowSize = terminalSize() #Update size of window
+                stdout.hideCursor()         #Hide the cursor from user
+            stdout.eraseScreen()        #Clear the screen
+            drawRoom(room)              #Draw in the room
+            dialog.writeDialog()        #Write out dialog
             draw = false
             continue
         
-        dialog.writeDialog() #Write in dialog
-        let chr = getch()    #Get character input from user
-        dialog.clearDialog() #Clear out dialog on screen
-        dialog = @[]         #Clear out dialog list
+        dialog.writeDialog(room.width + 4) #Write in dialog
+        let chr = getch()                  #Get character input from user
+        dialog.clearDialog(room.width + 4) #Clear out dialog on screen
+        dialog = @[]                       #Clear out dialog list
 
-        #If player presses escape, exit
-        if chr == '\x1b': break
+        #If player presses escape, see if they want to stop
+        if chr == '\x1b':
+            done = quitGame()
+            draw = true
+            continue
 
         #Handles the player's keypresses                     (This is story mode)
         chr.handleKeypress(dialog, player, floor, done, draw, level, story=true)

@@ -32,17 +32,17 @@ func newMonster*(pos:(int,int), name:string, chr: char, speed, health, dmg, chan
 #===[   SIMPLER MONSTERS   ]===#
 
 #Creates a new zombie, simple monster
-func newZombie*(pos:(int,int)): Monster = newMonster(pos, "Zombie", 'Z', speed=2, health=11, dmg=5, chance=3)
+func newZombie*(pos:(int,int)): Monster = newMonster(pos, "Zombie", 'Z', speed=2, health=11, dmg=6, chance=3)
 
 #Create a new ker, simple monster, 50% of hitting target
-func newKer*(pos:(int,int)): Monster = newMonster(pos, "Ker", 'K', speed=0, health=6, dmg=2, chance=2)
+func newKer*(pos:(int,int)): Monster = newMonster(pos, "Ker", 'K', speed=0, health=6, dmg=3, chance=2)
 
 #Create a new nymph, %25 of hitting target
-func newNymph*(pos:(int,int)): Monster = newMonster(pos, "Nymph", 'N', speed=0, health=6, dmg=3, chance=4)
+func newNymph*(pos:(int,int)): Monster = newMonster(pos, "Nymph", 'N', speed=0, health=6, dmg=5, chance=4)
 
 #Creates a mimic, not as simple, 50% accuracy
 func newMimic*(pos:(int,int)): Mimic =
-    Mimic(pos:pos, chr:'#', name:"Mimic", speed:1, speedRefresh:1, health:10, dmg:7, chance:2, awake:false)
+    Mimic(pos:pos, chr:'#', name:"Mimic", speed:1, speedRefresh:1, health:10, dmg:9, chance:2, awake:false)
 
 #===[   MOVEMENT   ]===#
 

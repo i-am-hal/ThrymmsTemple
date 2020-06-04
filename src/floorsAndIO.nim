@@ -41,6 +41,8 @@ type
         hasStairs*: bool
         #If the first room has been generated
         genFirstRoom: bool
+        #Whether or not a shop has been generated yet
+        hasShop*: bool
 
 #[    FLOOR & ROOM METHODS    ]# 
 
@@ -124,7 +126,7 @@ proc getPos(positions:var seq[(int,int)]): (int, int) =
     retPos
 
 #Returns a new room instance
-proc newRoom(floor:var Floor, w, h, roomType: int, level:var int, storyMode:bool): Room =
+proc newRoom(floor:var Floor, w, h, roomType:int, level:var int, storyMode:bool): Room =
     #[Room types: [NORTH, EAST, SOUTH, WEST]
         0
 
@@ -138,6 +140,8 @@ proc newRoom(floor:var Floor, w, h, roomType: int, level:var int, storyMode:bool
         hasMonsters = rand(1.. 5) >= 3
         #Max number of chests in this room
         numChests = numberOfChests(h, w)
+        #Check if a store could be here in this new room
+        storeHere = rand(10) == 1
 
         #Figure out what exits this room has
         exits =
@@ -154,6 +158,8 @@ proc newRoom(floor:var Floor, w, h, roomType: int, level:var int, storyMode:bool
                 else: [false, false, false, false] #No exits
     
     var
+        #Whether or not THIS room has a mimic
+        roomHasMimic = false
         #Make ascii version of room
         room = mkAsciiRoom(w, h)
         #Get all of the possible positions
@@ -213,15 +219,24 @@ proc newRoom(floor:var Floor, w, h, roomType: int, level:var int, storyMode:bool
         #Note that we have stairs now
         floor.hasStairs = true
         #Remove positions around stairs (left + right of stairs)
-        allpos =  allpos.filter(proc(pos:(int,int)):bool =
+        allpos = allpos.filter(proc(pos:(int,int)):bool =
             not (pos in @[(x,y), (x-1, y), (x+1, y)]))
+    
+    #If this is first room, remove middle position
+    elif not floor.genFirstRoom:
+        let #Get x & y positions
+            x = int(len(room) / 2)
+            y = int(len(room[0]) / 2)
+        #Remove this position from list of open positions to be used
+        allpos = allpos.filter(proc(pos:(int,int)):bool = pos != (x, y))
 
-    var
+
+    var #Mutable variables for all the Mobs/Objs for this room
         objs: seq[PointObject] = @[] #All of the game objects in this room (chests, any petunias)
         mobs: seq[Monster] = @[]     #All of the monsters in the room
         chestNum = 1                 #Number of chest
 
-    #Go and try to generate each chest in the room
+    #Go and try to generate each chest/mimic in the room
     for _ in 1.. numChests:
         #Stop the loop as soon as there aren't enough positions
         if len(allpos) == 0: break
@@ -241,8 +256,9 @@ proc newRoom(floor:var Floor, w, h, roomType: int, level:var int, storyMode:bool
     
         #If we are spawning a mimic into the room (can spawn in any room)
         elif genChest == 1 and isMimic <= 2:           #[and hasMonsters]#
+            roomHasMimic = true                   #Mark that we have a mimic in this room
             let mimic = newMimic(allpos.getPos()) #Create the mimic for this room
-            mobs.add(Monster mimic) #Add the mimic to the list of monsters
+            mobs.add(Monster mimic)               #Add the mimic to the list of monsters
             room[mimic.pos[1]][mimic.pos[0]] = '#'
     
     #If this room has monsters in it 
@@ -268,6 +284,14 @@ proc newRoom(floor:var Floor, w, h, roomType: int, level:var int, storyMode:bool
                 let monster = randomMobSpawn(allpos.getPos())
                 #Draw in the monster into the room
                 room[monster.pos[1]][monster.pos[0]] = monster.chr
+    
+    #If this room has no monsters in it, and we can have a store, 
+    # and there isn't already one, AND there isn't a mimic, then generate a store
+    elif not hasMonsters and storeHere and not floor.hasShop and not roomHasMimic:
+        floor.hasShop = true                 #Mark that we now have a shop
+        let shop = newShop(allpos.getPos())  #Create the shop object
+        objs.add(PointObject shop)           #Add the shop to list of objects
+        room[shop.pos[1]][shop.pos[0]] = 'P' #Draw in petunia (shop)
 
     #Return the new room instance
     Room(height:h+2, width:w+2, room:room, objs:objs, mobs:mobs)
@@ -393,9 +417,29 @@ proc newFloor*: Floor =
 #Given some text and color, writes text in that color
 template colorWrite*[T: string | char](text:T, color:ForegroundColor) =
     #Set the color for the text to be written
-    stdout.setForegroundColor(color)
+    stdout.setForegroundColor(color, true)
     stdout.write(text) #Write the text
     stdout.setForegroundColor(fgWhite) #Set back to white
+
+#Prints out some text centered in the middle of the screen, can additionally
+# add the 'press anything to continue' text and getting input to stop.
+proc centerText*(text:string, color=fgWhite, showContinue=false) =
+    let
+        size = terminalSize()     #Get the size of the terminal
+        midWidth = int(size[0] / 2) 
+        midHeight = int(size[1] / 2)
+        continueText = "(Press Anything to Continue)" #Text for telling player to continue
+    
+    #Set position to write out this text to the screen
+    stdout.setCursorPos(midWidth - int(len(text)/2), midHeight)
+    #Write out this text in the center of the screen with color
+    colorWrite(text, color)
+    
+    #If we want to write continue text, do so
+    if showContinue:
+        stdout.setCursorPos(midWidth - int(len(continueText)/2), midHeight+1)
+        stdout.write(continueText)
+        discard getch() #Get a keypress, stop continueation
 
 #Changes a character in the room's position
 proc moveChar*(chr:char, startX, startY, endX, endY: int, color=fgWhite) =
@@ -415,18 +459,27 @@ proc drawRoom*(room: Room) =
             if chr == '@':
                 colorWrite('@', fgCyan)
             
+            #Draw chests in as white
+            elif chr == '#':
+                colorWrite(chr, fgWhite)
+            
             #If a monster, color red
             elif chr in "ZKNmW":
                 colorWrite(chr, fgRed)
             
+            #If a shop (Petunia, color yellow)
+            elif chr == 'P':
+                colorWrite(chr, fgYellow)
+            
             else: #Otherwise, just write in character
                 stdout.write chr
+
         #End the row
         stdout.write '\n'
 
 #writes text in a color or style
 proc csWrite*[T: string | char](text:T, color=fgWhite, style: set[Style]={styleBright}) =
-    stdout.setForegroundColor(color) #Set color of foreground
+    stdout.setForegroundColor(color, true) #Set color of foreground
     writeStyled(text, style) #Writes text in this style
 
 #Checks if this char is in the room
@@ -452,9 +505,13 @@ proc drawMap*(floor: FLoor) =
             elif roomObj of Room and roomHasChar(Room roomObj, '^'):
                 colorWrite('#', fgGreen)
             
-            #Make the current room blink
+            #Make the current room the player is in Cyan 
             elif roomObj of Room and roomHasChar(Room roomObj, '@'):
-                colorWrite("#", fgCyan)
+                colorWrite('#', fgCyan)
+            
+            #If this room has a shop (& player not in room) color as green
+            elif roomObj of Room and roomHasChar(Room roomObj, 'P'):
+                colorWrite('#', fgYellow)
             
             else: #Unimportant room
                 stdout.write('#')
@@ -488,7 +545,7 @@ proc max[T: int | float](arr:openarray[T]): T =
                 result = num 
 
 #Clear out written dialog on screen
-proc clearDialog*(dialog:seq[string]) =
+proc clearDialog*(dialog:seq[string], column=45) =
     let
         #Get the length of each dialog piece
         textLengths = dialog.map proc(x:string):int = len(x)
@@ -498,7 +555,7 @@ proc clearDialog*(dialog:seq[string]) =
     var line = 1 #Start at line 1
     
     for _ in dialog:
-        stdout.setCursorPos(45, line)       #Set cursor to this line
+        stdout.setCursorPos(column, line)       #Set cursor to this line
         stdout.write(' '.repeat(maxLength)) #Clear out text on this line w/ spaces
         inc(line)                           #Move to next line
 

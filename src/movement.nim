@@ -145,15 +145,27 @@ proc roomMobMovement(floor:var Floor, player:var Player, dialog:var seq[string])
             
             #If attack hit, but player has armor, degrade armor
             if hitRoll == 0 and player.armor of Armor:
-                #Deggrade armor of the player
-                (Armor player.armor).health -= (Armor player.weapon).degrade
+                #Degrade armor of the player
+                (Armor player.armor).health -= (Armor player.armor).degrade
                 dialog.add fmt"You were hit by a {mob.name}!" #Tell user they were hit by a monster
-                dialog.add "Your armor degraded!" #Tell user their armor degraded
+
+                #If armor just broke, tell player that their armor broke, break it
+                if player.armor of Armor and (Armor player.armor).health <= 0:
+                    dialog.add "Your armor broke!"
+                    player.armor = GameItem(name:"None", desc:"") #Give nothing as armor
+                
+                else: #Otherwise, say it is degraded
+                    dialog.add "Your armor degraded!" #Tell user their armor degraded
+
+                #Redraw the player as red to show that their armor degraded
+                floor.moveChar(player, '@', player.xpos, player.ypos, player.xpos, player.ypos, color=fgMagenta)
             
             #If attack hit, but player has no armor, take away health
             elif hitRoll == 0 and not (player.armor of Armor):
                 player.health -= dmg #Take away this amount of health
                 dialog.add fmt"You were dealt {dmg} damage by {mob.name}!" #Tell amount damaged by
+                #Redraw the player as red to show that they got hurt
+                floor.moveChar(player, '@', player.xpos, player.ypos, player.xpos, player.ypos, color=fgRed)
         
         #[ MONSTER MOVEMENT ]#
 
@@ -206,8 +218,9 @@ proc playerAttack(floor:var Floor, player:var Player, dialog:var seq[string]) =
             for i, mob in currRoom.mobs:
                 #If we found the mob, save index
                 if mob.pos == (mobX, mobY):
-                    foundMob = true        #Say we found the mob, break out
+                    foundMob = true  #Say we found the mob, break out
                     mobIndexes.add i #Add index of this monster
+                    break            #Stop collecting monsters to attack
 
             dec(mobX) #Move left one more position
         
@@ -219,8 +232,9 @@ proc playerAttack(floor:var Floor, player:var Player, dialog:var seq[string]) =
             for i, mob in currRoom.mobs:
                 #if we found mob, save index
                 if mob.pos == (mobX, mobY):
-                    foundMob = true        #Say we found mob, break out
+                    foundMob = true  #Say we found mob, break out
                     mobIndexes.add i #Add index of this monster
+                    break            #Stop collecting monsters to kill
 
             inc(mobX) #Move right one space
         
@@ -233,8 +247,9 @@ proc playerAttack(floor:var Floor, player:var Player, dialog:var seq[string]) =
             for i, mob in currRoom.mobs:
                 #if found mob, save index
                 if mob.pos == (mobX, mobY):
-                    foundMob = false       
+                    foundMob = true       
                     mobIndexes.add i #Save index
+                    break            #Stop collecting monsters
             
             dec(mobY) #Move up
         
@@ -246,8 +261,9 @@ proc playerAttack(floor:var Floor, player:var Player, dialog:var seq[string]) =
             for i, mob in currRoom.mobs:
                 #Found mob, save index
                 if mob.pos == (mobX, mobY):
-                    foundMob = false
+                    foundMob = true 
                     mobIndexes.add i #Save index
+                    break            #Exit loop
             
             inc(mobY) #Move down
         
@@ -375,7 +391,7 @@ proc handleKeypress*(keypress:char, dialog:var seq[string], player:var Player, f
             #If there is a staircase above, go to next floor
             elif upStair(room, player.xpos, player.ypos):
                 actionKeyPress = false #Don't move monsters
-                inc level #Go to next level
+                level += 1 #Go to next level
                 draw = true #Say we need to draw new room
                 floor = newFloor() #Make a new floor
                 floor.spawnPlayer(player, level, story) #Spawn player in  new room
@@ -400,6 +416,7 @@ proc handleKeypress*(keypress:char, dialog:var seq[string], player:var Player, f
             elif leftStair(room, player.xpos, player.ypos):
                 actionKeyPress = false #Don't move monsters
                 draw = true #Draw the new room
+                level += 1  #Go to next floor
                 floor = newFloor() #Make a new floor
                 floor.spawnPlayer(player, level, story) #Spawn in the player
             
@@ -424,6 +441,7 @@ proc handleKeypress*(keypress:char, dialog:var seq[string], player:var Player, f
             elif rightStair(room, player.xpos, player.ypos):
                 actionKeyPress = false #Don't move monsters
                 draw = true #Draw in the new room
+                level += 1  #Go to next level
                 floor = newFloor() #Create the new floor
                 #Spawn in the player
                 floor.spawnPlayer(player, level, story)
@@ -448,6 +466,7 @@ proc handleKeypress*(keypress:char, dialog:var seq[string], player:var Player, f
             elif downStair(room, player.xpos, player.ypos):
                 actionKeyPress = false #Don't move monsters
                 draw = true #Draw in the new room
+                level += 1  #Go to next floor
                 floor = newFloor() #Create the new floor
                 #Spawn in the player into the floor
                 floor.spawnPlayer(player, level, story)
@@ -470,6 +489,8 @@ proc handleKeypress*(keypress:char, dialog:var seq[string], player:var Player, f
         colorWrite("Explored", fgWhite)
         stdout.write " - "
         colorWrite("Exit", fgGreen) #Tell which is an exit
+        stdout.write " - "
+        colorWrite("Shop", fgYellow) #Tell what room has a shop
 
         drawMap(floor) #Draw out the map for the user
 
@@ -521,6 +542,12 @@ proc handleKeypress*(keypress:char, dialog:var seq[string], player:var Player, f
                 draw = true                            #Note to redraw the room
                 var chest = Chest room.objs[obj_index] #The currently focused on chest
                 openChest(chest, player)               #Opens the chest
+            
+            #If in range, and is Shop, use and modify shop
+            elif obj.pos in targetPos and obj of Shop:
+                draw = true                          #We need to refresh screen after
+                var shop = Shop room.objs[obj_index] #The shop being focused on
+                shopInteraction(shop, player)        #Open menu up for the shop
     
     #If player pressed key that is an 'action' that takes a 'turn'
     # then allow the monsters to move closer and/or attack

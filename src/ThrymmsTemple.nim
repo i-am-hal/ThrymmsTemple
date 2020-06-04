@@ -8,7 +8,9 @@ Date: 9/28/2019
 from times import getTime, toUnix, nanosecond
 import terminal, gameModes, random
 
+#Entry point for the game
 proc main =
+  enableTrueColors()  #Try to allow for true colors
   let now = getTime() #Get current system time
   randomize(now.toUnix * 1000000000 + now.nanosecond) #Makes sure all seeds are random
   stdout.hideCursor() #Hide the cursor
@@ -19,6 +21,7 @@ proc main =
 
   storyMode() #Start the story mode
 
+  disableTrueColors()      #Turn off true color
   stdout.showCursor()      #Show the cursor
   stdout.eraseScreen()     #Erase the screen
   stdout.setCursorPos(0,0) #Set cursor position
