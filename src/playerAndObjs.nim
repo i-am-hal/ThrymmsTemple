@@ -6,7 +6,8 @@ Author: Alastar Slater
 Date: 9/28/2019
 ]#
 
-import random, terminal, strformat, strutils
+import random, terminal, strformat, strutils, sequtils
+from math import sum
 
 #randomize()
 
@@ -885,6 +886,10 @@ proc buyFromShopUI(self:var Shop, dialog:var seq[string], selection, playerGold:
 
 #This is the option for buying things from the shop (Petunia)
 proc buyFromShop(self:var Shop, player:var Player) =
+    #Check if there are no potions, then cost is zero
+    if self.potions == 0 and self.potionCost > 0:
+        self.potionCost = 0
+
     var
         dialog: seq[string] = @[]
         selection = 0
@@ -977,6 +982,134 @@ proc buyFromShop(self:var Shop, player:var Player) =
             else:
                 dialog.add("You don't have enough money!")
 
+#Draws out the user interface to the selling of items to shop
+proc sellToShopUI(self:var Shop, dialog:var seq[string], player:var Player, selection:int) =
+    stdout.eraseScreen()
+    stdout.setCursorPos(0,0)
+
+    echo " ________________________________________________________________"
+    echo "| Petunia ) Sell Items"
+    echo "| Esc   - exit menu"
+    echo "| W / S - move up / down through selection"
+    echo "| Enter - sell selected items"
+    echo "| E     - sell all items"
+    echo "|"
+    echo fmt"| Your gold: {player.gold}"
+    echo "|"
+
+    #Go through each item in the player's inventory to print it out
+    for i in 1..len(player.inventory):
+        let item = player.inventory[i-1]
+
+        #If this is the selected item, change second header postfix
+        if selection == i:
+            item.sayItemText(fmt"| {i}: ", "|  ", shPostfix=" (*)")
+        
+        else: #If this item not selected, have unselected item
+            item.sayItemText(fmt"| {i}: ", "|  ", shPostfix=" ()")
+
+    echo " ________________________________________________________________"
+
+    #Go through and print out each line of dialog for the user
+    var lineNumber = 1
+    for line in dialog:
+        stdout.setCursorPos(66, lineNumber)
+        echo line
+        inc(lineNumber)
+    
+    #Clear out dialog buffer
+    dialog = @[]
+
+#This is the option for selling items to the shopkeep
+proc sellToShop(self:var Shop, player:var Player) =
+    #Gives price of item, has bonus for how intact item is
+    proc sellPrice(item: GameItem): int =
+        #Return normal cost of weapon, add bonus for how undamadged it is
+        if item of Weapon:
+            return getWeaponCost(Weapon item) + int((Armor item).health / 10)
+        
+        #Return normal cost of armor, plus bonus for how intact it is
+        elif item of Armor:
+            return getArmorCost(Armor item) + int((Armor item).health / 10)
+
+    var 
+        chr = '\0'
+        selection = 1
+        dialog: seq[string] = @[]
+
+    while true:
+        self.sellToShopUI(dialog, player, selection)
+        chr = getch().toLowerAscii()
+
+        #Close out menu when player presses escape
+        if chr == '\x1b':
+            break
+
+        #Moving up through selection, only if not at first item
+        elif chr == 'w' and selection > 1:
+            selection -= 1
+        
+        #Move down through selection, only if not on final item
+        elif chr == 's' and selection < len(player.inventory):
+            selection += 1
+        
+        #Selling single item, remove that item
+        elif chr == '\r' and len(player.inventory) > 0:
+            #Calculate the amount the player will get by selling this
+            let profit = sellPrice(player.inventory[selection-1])
+            player.gold += profit #Add the earned money to bag
+
+            var 
+                index = 1
+                newInventory: seq[GameItem] #New inventory after selling
+
+            #Go through each item, only add those not being sold right now
+            for item in player.inventory:
+                if index != selection:
+                    newInventory.add(item)
+                
+                index += 1
+            
+            #Give player new inventory where item is sold and gone
+            player.inventory = newInventory
+            #Tell player how much they profited by
+            dialog.add fmt"+{profit} gold!"
+        
+        #Selling all items in bag, first ask if they want to do it
+        elif chr == 'e' and len(player.inventory) > 0:
+            let #Define the values and info that will NEVER change during this
+                promptXPos = 3
+                lines = @[
+                    " _________________________________________________________",
+                    "|        Are you sure you want to sell everything?",
+                    "|                      (Y)es / (N)o",
+                    " ---------------------------------------------------------"
+                ]
+            
+            var promptYPos = 5 #Y position changes between printing of each line
+
+            #Print out each one of the lines
+            for line in lines:
+                stdout.setCursorPos(promptXPos, promptYPos)
+                echo line
+                promptYPos += 1
+            
+            #Only allow for Escape, Y and N as inputs
+            while not (chr in ['y', 'n', '\x1b']): chr = getch().toLowerAscii()
+
+            #If the player said they are sure (they want to sell everything) do so
+            if chr == 'y':
+                #Calculate the total profit of player by selling everything
+                let profit = sum(map(player.inventory, sellPrice))
+                player.gold += profit  #Give player earned money
+                player.inventory = @[] #Clear out inventory, no more items in bag
+                #Tell player how much gold they just got
+                dialog.add fmt"+{profit} gold!"
+        
+        #If trying to sell nothing, complain to the player
+        elif chr == 'e' or chr == '\r' and len(player.inventory) == 0:
+            dialog.add "You can't sell anything!"
+
 #Draw the basic UI for the toplevel menu for shops
 proc shopkeepUI* (self:var Shop) =
     #Clear screen and set cursor positions
@@ -1019,4 +1152,7 @@ proc shopInteraction*(self:var Shop, player:var Player) =
         #If trying to buy from the shop
         elif chr == 'q':
             self.buyFromShop(player)
-
+        
+        #If trying to sell things to shop
+        elif chr == 'e':
+            self.sellToShop(player)
