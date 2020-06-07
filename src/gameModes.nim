@@ -6,7 +6,7 @@ of an acarde-esc game mode.
 Author: Alastar Slater
 Date: 9/28/2019
 ]#
-import floorsAndIO, playerAndObjs, terminal, movement, strutils
+import floorsAndIO, playerAndObjs, terminal, movement #, strutils
 
 #[
 NUMBER OF CHESTS:
@@ -119,8 +119,8 @@ proc storyMode* =
             draw = true
             continue
 
-        #Handles the player's keypresses                     (This is story mode)
-        chr.handleKeypress(dialog, player, floor, done, draw, level, story=true)
+        #Handles the player's keypresses                     (This is story mode) (allow debug options)
+        chr.handleKeypress(dialog, player, floor, done, draw, level, story=true, debug=true)
         #Get the new room
         room = Room floor.floor[player.roomY][player.roomX]
     

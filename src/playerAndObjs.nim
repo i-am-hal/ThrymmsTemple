@@ -6,10 +6,9 @@ Author: Alastar Slater
 Date: 9/28/2019
 ]#
 
-import random, terminal, strformat, strutils, sequtils
+import random, terminal, strformat, #[strutils,]# sequtils
+from strutils import toLowerAscii, splitWhiteSpace
 from math import sum
-
-#randomize()
 
 #(define some constants for this file)
 let 
@@ -323,6 +322,11 @@ proc newShop*(position:(int, int)): Shop =
     Shop(pos:position, potions:genPotions(), potionCost:rand(7..50), weapon:weapon, armor:armor, 
     armorCost:armorPrice, weaponCost:weaponPrice, talkTopics:makeTopicList())
 
+#===[   CONVIENCE FUNCTIONS   ]===#
+
+#Return true if the given item is Nothing
+proc isNoneObj(item: GameItem): bool = item == GameItem(name:"None", desc:"")
+
 #===[   FUNCTIONS FOR UI   ]===#
 
 #prints text for a game item
@@ -349,6 +353,16 @@ proc sayItemText[T:Armor | Weapon | GameItem](x:T, prefix:string, secPrefix="| "
     #Generate the text for none
     else:
         echo prefix & "None" & shPostfix
+
+#Used to print out a sort of pop-up menu (like for making some choices in some other menu)
+# Takes x-pos for all text, and starting y-pos for text, and then all the lines to print
+proc popupMenu(xpos, startYpos:int, text:openarray[string]) =
+    var yPos = startYpos
+
+    for line in text:
+        stdout.setCursorPos(xpos, yPos)
+        echo line
+        yPos += 1
 
 #===[   CHEST USER INTERFACE   ]===#
 
@@ -445,15 +459,21 @@ proc openChest*(self:var Chest, player:var Player) =
         #Bag weapon / armor
         elif chr == 'v':
             self.drawChestUI() #Let user see weapon and armor before
-            #Give extra prompt to player as to what they want to bag
-            echo   " ----------------------------------------- "
-            echo   "| Do you want to bag the armor or weapon? |"
-            echo   "|                                         |"
-            echo   "| (A)rmor        (W)eapon        (C)ancel |"
-            echo   " ----------------------------------------- "
+            #stdout.setCursorPos(5, 3)
+            #Lines for the prompt that will be printed out
+            let lines = [
+                " _________________________________________ ",
+                "| Do you want to bag the armor or weapon? |",
+                "|                                         |",
+                "| (A)rmor        (W)eapon        (C)ancel |",
+                " ----------------------------------------- "
+            ]
+            
+            #Make the sub menu for choosing between what to pick
+            popupMenu(5, 5, lines)
 
             #Continue getting input until choice is made
-            while not (chr.toLowerAscii() in @['a', 'w', 'c']):
+            while not (chr.toLowerAscii() in @['a', 'w', 'c', '\x1b']):
                 chr = getch().toLowerAscii()
             
             #Try to add armor to bag, and it IS armor, but also if there is room in the bag
@@ -534,16 +554,21 @@ proc drawBagUI(self:var Player, select:var int) =
 
     let selectIndex = select - 1 #Index of the selected item
 
-    #Go through the selection of every item
-    for i in 0..len(self.inventory)-1:
-        let item = self.inventory[i] #Get the item from bag
+    #Only go through and list all items in bag if there are things in the bag
+    if len(self.inventory) > 0:
+        #Go through the selection of every item
+        for i in 0..len(self.inventory)-1:
+            let item = self.inventory[i] #Get the item from bag
 
-        #If this is the selected item, change second header postfix
-        if selectIndex == i:
-            item.sayItemText(fmt"| {i+1}: ", "|  ", shPostfix=" (*)")
-        
-        else: #If this item not selected, have unselected item
-            item.sayItemText(fmt"| {i+1}: ", "|  ", shPostfix=" ()")
+            #If this is the selected item, change second header postfix
+            if selectIndex == i:
+                item.sayItemText(fmt"| {i+1}: ", "|  ", shPostfix=" (*)")
+            
+            else: #If this item not selected, have unselected item
+                item.sayItemText(fmt"| {i+1}: ", "|  ", shPostfix=" ()")
+    
+    else: #Otherwise, say nothing in the bag
+        echo "| Nothing is in your bag."
 
     echo " ---------------------------------------------------"
 
@@ -874,13 +899,8 @@ proc buyFromShopUI(self:var Shop, dialog:var seq[string], selection, playerGold:
 
     echo "|___________________________________________________"
 
-    var lineNumber = 1 #Line number for dialog
-    #Go through each line in the dialog and print it out
-    for line in dialog:
-        stdout.setCursorPos(55, lineNumber)
-        echo line
-        inc(lineNumber)
-    
+    #Write out all of the dialog
+    dialog.writeDialog(55)
     #Clear out dialog since we're done with that
     dialog = @[]
 
@@ -997,26 +1017,26 @@ proc sellToShopUI(self:var Shop, dialog:var seq[string], player:var Player, sele
     echo fmt"| Your gold: {player.gold}"
     echo "|"
 
-    #Go through each item in the player's inventory to print it out
-    for i in 1..len(player.inventory):
-        let item = player.inventory[i-1]
+    #If the player has things in their bag, list them
+    if len(player.inventory) > 0:
+        #Go through each item in the player's inventory to print it out
+        for i in 1..len(player.inventory):
+            let item = player.inventory[i-1]
 
-        #If this is the selected item, change second header postfix
-        if selection == i:
-            item.sayItemText(fmt"| {i}: ", "|  ", shPostfix=" (*)")
-        
-        else: #If this item not selected, have unselected item
-            item.sayItemText(fmt"| {i}: ", "|  ", shPostfix=" ()")
+            #If this is the selected item, change second header postfix
+            if selection == i:
+                item.sayItemText(fmt"| {i}: ", "|  ", shPostfix=" (*)")
+            
+            else: #If this item not selected, have unselected item
+                item.sayItemText(fmt"| {i}: ", "|  ", shPostfix=" ()")
+    
+    else: #Otherwise, nothing in bag
+        echo "| Nothing is in your bag."
 
     echo " ________________________________________________________________"
 
-    #Go through and print out each line of dialog for the user
-    var lineNumber = 1
-    for line in dialog:
-        stdout.setCursorPos(66, lineNumber)
-        echo line
-        inc(lineNumber)
-    
+    #Write out all the dialog
+    dialog.writeDialog(66)
     #Clear out dialog buffer
     dialog = @[]
 
@@ -1077,23 +1097,17 @@ proc sellToShop(self:var Shop, player:var Player) =
         
         #Selling all items in bag, first ask if they want to do it
         elif chr == 'e' and len(player.inventory) > 0:
-            let #Define the values and info that will NEVER change during this
-                promptXPos = 3
-                lines = @[
-                    " _________________________________________________________",
-                    "|        Are you sure you want to sell everything?",
-                    "|                      (Y)es / (N)o",
-                    " ---------------------------------------------------------"
-                ]
+            #Gives all of the lines for this sub menu
+            let lines = @[
+                " _________________________________________________________",
+                "|        Are you sure you want to sell everything?",
+                "|                      (Y)es / (N)o",
+                " ---------------------------------------------------------"
+            ]
             
-            var promptYPos = 5 #Y position changes between printing of each line
+            #Make the popup menu to ask if the player is certain
+            popupMenu(3, 5, lines)
 
-            #Print out each one of the lines
-            for line in lines:
-                stdout.setCursorPos(promptXPos, promptYPos)
-                echo line
-                promptYPos += 1
-            
             #Only allow for Escape, Y and N as inputs
             while not (chr in ['y', 'n', '\x1b']): chr = getch().toLowerAscii()
 
@@ -1110,8 +1124,71 @@ proc sellToShop(self:var Shop, player:var Player) =
         elif chr == 'e' or chr == '\r' and len(player.inventory) == 0:
             dialog.add "You can't sell anything!"
 
+#This draws in the user interface for repairing items
+proc repairItemsUI(self:var Shop, dialog:var seq[string], player:var Player, selection:int) =
+    stdout.eraseScreen()
+    stdout.setCursorPos(0,0)
+
+    #Returns string of if this item is selected or not
+    func selectionTag(id, selection: int): string =
+        if id == selection:
+            return "(*)"
+        else:
+            return "()"
+
+    #Returns the cost of repairing the item fully
+    func repairCost(item: GameItem): int =
+        #Additional cost based on how degraded the item is
+        let repairBonus = int((100 - item.health) / 2)
+
+        if item of Weapon:
+            return getWeaponCost(Weapon item) + repairBonus
+        elif item of Armor:
+            return getArmorCost(Armor item) + repairBonus
+
+    echo " ________________________________________________________________"
+    echo "| Petunia ) Repair Items"
+    echo "| Esc   - exit menu"
+    echo "| W / S - move up/down through selection"
+    echo "| Enter - repair selected item\n|"
+    echo fmt"| Your Gold: {player.gold}"
+    echo "|"
+
+    #Show the propper text for if this item is nothing
+    if isNoneObj(player.weapon):
+        echo "| Equipped Weapon: None " & $selectionTag(1, selection)
+    
+    else: #Otherwise, also give info on how much it will cost
+        echo "| Equipped Weapon: " & player.weapon.name & fmt" ({repairCost(player.weapon)} gp) " & $selectionTag(1, selection)
+    
+    #Show text for the equipped armor
+    if isNoneObj(player.armor):
+        echo "| Equipped Armor: None " & $selectionTag(2, selection)
+    
+    else: #Otherwise give all info
+        echo "| Equipped Weapon: " & player.armor.name & fmt" ({repairCost(player.armor)} gp) " & $selectionTag(2, selection)
+    
+    #
+
+    echo " ________________________________________________________________"
+
+#This is the option for repairing any items (eqipped or otherwise)
+proc repairItems(self:var Shop, player:var Player) =
+    var
+        chr = '\0'
+        selection = 1
+        dialog: seq[string]
+    
+    while true:
+        self.repairItemsUI(dialog, player, selection)
+        chr = getch().toLowerAscii()
+
+        #If player presses escape, exit menu
+        if chr == '\x1b':
+            break
+
 #Draw the basic UI for the toplevel menu for shops
-proc shopkeepUI* (self:var Shop) =
+proc shopkeepUI*(self:var Shop) =
     #Clear screen and set cursor positions
     stdout.eraseScreen()
     stdout.setCursorPos(0, 0)
@@ -1131,6 +1208,7 @@ proc shopInteraction*(self:var Shop, player:var Player) =
 
         Buy items (Q)
         Sell items (E)
+        Repair items (R)
         Talk to Petunia (F)
     ]#
 
@@ -1156,3 +1234,7 @@ proc shopInteraction*(self:var Shop, player:var Player) =
         #If trying to sell things to shop
         elif chr == 'e':
             self.sellToShop(player)
+        
+        #If trying to repair some items
+        elif chr == 'r':
+            self.repairItems(player)

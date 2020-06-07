@@ -23,6 +23,10 @@ type
     #Creates a mimic, which when 'awakened' will start moving
     Mimic* = ref object of Monster
         awake*: bool
+    
+    #A specter can be visible or not (when visible it can be attacked)
+    Specter* = ref object of Monster
+        visible*: bool
 
 #Creates a new blank monster
 func newMonster*(pos:(int,int), name:string, chr: char, speed, health, dmg, chance: int): Monster =
@@ -31,7 +35,7 @@ func newMonster*(pos:(int,int), name:string, chr: char, speed, health, dmg, chan
 
 #===[   SIMPLER MONSTERS   ]===#
 
-#Creates a new zombie, simple monster
+#Creates a new zombie, simple monster, 30% of hitting
 func newZombie*(pos:(int,int)): Monster = newMonster(pos, "Zombie", 'Z', speed=2, health=11, dmg=6, chance=3)
 
 #Create a new ker, simple monster, 50% of hitting target
@@ -40,9 +44,16 @@ func newKer*(pos:(int,int)): Monster = newMonster(pos, "Ker", 'K', speed=0, heal
 #Create a new nymph, %25 of hitting target
 func newNymph*(pos:(int,int)): Monster = newMonster(pos, "Nymph", 'N', speed=0, health=6, dmg=5, chance=4)
 
+#Creates a new warlock, 30% chance of hitting player
+func newWarlock*(pos:(int,int)): Monster = newMonster(pos, "Warlock", 'W', speed=1, health=8, dmg=8, chance=3)
+
 #Creates a mimic, not as simple, 50% accuracy
 func newMimic*(pos:(int,int)): Mimic =
     Mimic(pos:pos, chr:'#', name:"Mimic", speed:1, speedRefresh:1, health:10, dmg:9, chance:2, awake:false)
+
+#Creates a specter, invisible most of time, 30% chance of hit
+func newSpecter*(pos:(int,int)): Specter =
+    Specter(pos:pos, chr:'.', name:"Specter", speed:0, speedRefresh:0, health:15, dmg:12, chance:3, visible:false)
 
 #===[   MOVEMENT   ]===#
 
@@ -65,6 +76,10 @@ proc warlockTargetLocations(pos:(int, int)): seq[(int, int)] =
 proc getTargetLocations*(mob:Monster, pos:(int, int)): seq[(int, int)] =
     #Return positions to check if player is in them
     if mob of Mimic and not (Mimic mob).awake:
+        return warlockTargetLocations(pos) & mob.defaultTargetLocations(pos)
+    
+    #If this mob is a warlock, return the warlock locations
+    elif mob.chr == 'W':
         return warlockTargetLocations(pos)
     
     else: #if just monster, use default locations
@@ -89,17 +104,21 @@ proc getMonsterDiversity(floor:int): int =
         result = 6
 
 #Spawns corresponding monster from positino and id
-proc getMonsterFromId(id: int, pos:(int, int)): Monster =
+proc getMonsterFromId*(id: int, pos:(int, int)): Monster =
     #[
         1/ELSE - Zombie
         2 - Ker
         3 - Nymph
+        4 - Warlock
+        5 - Specter
     ]#
     #Returns corresponding monster
     case id:
-        of 2: newKer(pos) #Id 2 is Ker
-        of 3: newNymph(pos) #Id 3 is Nymph
-        else: newZombie(pos) #Otherwise, zombie
+        of 2: newKer(pos)     #Id 2 is Ker
+        of 3: newNymph(pos)   #Id 3 is Nymph
+        of 4: newWarlock(pos) #Id 4 is Warlock
+        of 5: newSpecter(pos) #Id 5 is Specter
+        else: newZombie(pos)  #Otherwise, zombie (1)
 
 #Given a position and floor level, spawn monster
 proc spawnMob*(floor:var int, pos:(int, int)): Monster =
@@ -114,7 +133,7 @@ proc spawnMob*(floor:var int, pos:(int, int)): Monster =
 
 #Spawns a random monster
 proc randomMobSpawn*(pos:(int, int)): Monster =
-    let id = rand(1.. 3) #Get id of the monster to spawn 
+    let id = rand(1.. 4) #Get id of the monster to spawn 
     #Spawns corresponding monster with it's id
     getMonsterFromId(id, pos)
 

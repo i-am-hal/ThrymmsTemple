@@ -7,7 +7,7 @@ Date: 9/28/2019
 ]#
 
 
-import random, terminal, strutils, strformat, playerAndObjs, floorsAndIO, monsters
+import random, terminal, strutils, strformat, playerAndObjs, floorsAndIO, monsters, debugTools
 
 #Checks if there is a character in a certain direction
 proc checkChar(room:Room, x, y: int, chr: char, modX=0,modY=0): bool =
@@ -51,7 +51,7 @@ proc downDoor(room:Room, x, y:int): bool = checkChar(room, x, y, 'D', modY=1)
 proc downStair(room:Room, x,y:int): bool = checkChar(room, x, y, '^', modY=1)
 
 #Moves the monster left/right or up/down based on the unit movement vector
-proc moveMonster(floor:var Floor, player:var Player, allMobs:seq[Monster], mob:Monster, mobIndex:int, targets:seq[(int, int)]) =
+proc moveMonster(floor:var Floor, player:var Player, allMobs:seq[Monster], mob:Monster, mobIndex:int, targets:seq[(int, int)], monsterColor=fgRed) =
     var 
         moveVector = getMoveVector(allMobs, mob.pos, targets) #Get movement vector of this monster
         room = Room (floor.floor[player.roomY][player.roomX]) #The current room used for seeing empty spaces
@@ -78,34 +78,34 @@ proc moveMonster(floor:var Floor, player:var Player, allMobs:seq[Monster], mob:M
         #If the right/left is totally clear, move there
         if moveY > 0 and room.downEmpty(x, y) or moveY < 0 and room.upEmpty(x, y):
             room.mobs[mobIndex].pos[1] += moveY                              #Save the new y position
-            floor.moveChar(player, mob.chr, x, y, x, y + moveY, color=fgRed) #Move monster in the room
+            floor.moveChar(player, mob.chr, x, y, x, y + moveY, color=monsterColor) #Move monster in the room
         
         #If the space above is empty, move up
         elif room.leftEmpty(x, y):
             room.mobs[mobIndex].pos[0] -= 1                              #Make monster move left
-            floor.moveChar(player, mob.chr, x, y, x - 1, y, color=fgRed) #Move monster in the room
+            floor.moveChar(player, mob.chr, x, y, x - 1, y, color=monsterColor) #Move monster in the room
         
         #If the space below is empty, move down
         elif room.rightEmpty(x, y):
             room.mobs[mobIndex].pos[0] += 1                              #Make monster move right
-            floor.moveChar(player, mob.chr, x, y, x + 1, y, color=fgRed) #Move monster in the room
+            floor.moveChar(player, mob.chr, x, y, x + 1, y, color=monsterColor) #Move monster in the room
     
     #If no need to move in the y-axis, move in x 
     elif moveX != 0 and moveY == 0:
         #If the monster can move left or right, do so
         if moveX > 0 and room.rightEmpty(x, y) or moveX < 0 and room.leftEmpty(x, y):
             room.mobs[mobIndex].pos[0] += moveX                         #Save the new x position
-            floor.moveChar(player, mob.chr, x, y, x + moveX, y, color=fgRed) #Move monster in room
+            floor.moveChar(player, mob.chr, x, y, x + moveX, y, color=monsterColor) #Move monster in room
         
         #If the space above is empty, move there
         elif room.upEmpty(x, y):
             room.mobs[mobIndex].pos[1] -= 1                              #Make monster move up
-            floor.moveChar(player, mob.chr, x, y, x, y - 1, color=fgRed) #Move monster in room
+            floor.moveChar(player, mob.chr, x, y, x, y - 1, color=monsterColor) #Move monster in room
         
         #If the space below is empty, move there
         elif room.downEmpty(x, y):
             room.mobs[mobIndex].pos[1] += 1                              #Make monster move right
-            floor.moveChar(player, mob.chr, x, y, x, y + 1, color=fgRed) #Move monster in room
+            floor.moveChar(player, mob.chr, x, y, x, y + 1, color=monsterColor) #Move monster in room
 
 #This deals with the movement / actions of all mobs in the room
 proc roomMobMovement(floor:var Floor, player:var Player, dialog:var seq[string]) =
@@ -134,6 +134,14 @@ proc roomMobMovement(floor:var Floor, player:var Player, dialog:var seq[string])
             #Do literally nothing
             discard 0
         
+        #If specter is invisible and in range, make it visible (change to S)
+        elif mob of Specter and not (Specter mob).visible and canAttack:
+            (Specter mob).visible = true #Say this thing is visible now!
+            mob.chr = 'S'                #Change it so it's rendered as an S
+            let pos = mob.pos
+            #Draw in the specter so it is ACTUALLY visible
+            floor.moveChar(player, 'S', pos[0], pos[1], pos[0], pos[1], color=fgRed)
+
         #[ MONSTER ATTACK ]#
 
         #Default monster attack (include mimic when awake)
@@ -173,6 +181,10 @@ proc roomMobMovement(floor:var Floor, player:var Player, dialog:var seq[string])
         elif mob.speed > 0:
             mob.speed -= 1
         
+        #If this is a specter that's moving, do not color them red (when invisible)
+        elif mob of Specter and not (Specter mob).visible:
+            floor.moveMonster(player, currRoom.mobs, mob, index, targetLocations, monsterColor=fgWhite)
+
         #Regular monster movement, move closer to attack player, reset move timer
         elif mob.speed == 0:
             floor.moveMonster(player, currRoom.mobs, mob, index, targetLocations) #Move monster in the room
@@ -354,7 +366,7 @@ proc removeDeadMobs(floor:var Floor, player:var Player) =
         inc(index) #Move to next monster
 
 #Deals with whatever action is associated with a keypress in the game
-proc handleKeypress*(keypress:char, dialog:var seq[string], player:var Player, floor:var Floor, done, draw:var bool, level:var int, story:bool) =
+proc handleKeypress*(keypress:char, dialog:var seq[string], player:var Player, floor:var Floor, done, draw:var bool, level:var int, story:bool, debug=false) =
     let key = keypress.toLowerAscii() #Make the current char lowercase
     #Get the current room to be looked at
     let room = Room (floor.floor[player.roomY][player.roomX])
@@ -549,6 +561,12 @@ proc handleKeypress*(keypress:char, dialog:var seq[string], player:var Player, f
                 var shop = Shop room.objs[obj_index] #The shop being focused on
                 shopInteraction(shop, player)        #Open menu up for the shop
     
+    #If debug key, open debug menu, only if debug flag is set
+    elif key == '`' or key == '~' and debug:
+        #Launches the debug terminal to enter some commands into
+        debugTerminal(player, floor, level)
+        draw = true
+
     #If player pressed key that is an 'action' that takes a 'turn'
     # then allow the monsters to move closer and/or attack
     if actionKeyPress == true:

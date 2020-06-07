@@ -342,14 +342,14 @@ proc spawnPlayer*(self:var Floor, player:var Player, level:var int, story:bool) 
 proc moveChar*(chr:char, startX, startY, endX, endY:int, color=fgWhite)
 
 #Moves some character on screen to a different location
-proc moveChar*(self:var Floor, player:var Player, chr:char, startX, startY, endX, endY:int, color=fgWhite) =
+proc moveChar*(self:var Floor, player:var Player, chr:char, startX, startY, endX, endY:int, color=fgWhite, showChange=true) =
     #Removes last place on screen
     (Room self.floor[player.roomY][player.roomX]).room[startY][startX] = '.'
     #Draw in character to new place
     (Room self.floor[player.roomY][player.roomX]).room[endY][endX] = chr
 
-    #Moves the character on screen
-    chr.moveChar(startX, startY+1, endX, endY+1, color)
+    #Moves the character on screen (if showChange is true)
+    if showChange: chr.moveChar(startX, startY+1, endX, endY+1, color)
 
 #Moves player into a new room so they have 'continuity'
 #exitFrom: 1-north, 2-east, 3-south, 4-west, else-center
@@ -464,7 +464,7 @@ proc drawRoom*(room: Room) =
                 colorWrite(chr, fgWhite)
             
             #If a monster, color red
-            elif chr in "ZKNmW":
+            elif chr in "ZKNmWS":
                 colorWrite(chr, fgRed)
             
             #If a shop (Petunia, color yellow)
