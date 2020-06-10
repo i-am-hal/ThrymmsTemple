@@ -1124,6 +1124,15 @@ proc sellToShop(self:var Shop, player:var Player) =
         elif chr == 'e' or chr == '\r' and len(player.inventory) == 0:
             dialog.add "You can't sell anything!"
 
+#Returns the cost of repairing the item fully
+func repairCost(item: GameItem): int =
+    #Calculate repair cost: (WEAPON_COST / 1.5) - (100 - WEAPON_HEALTH)/5
+    if item of Weapon:
+        return int(float(getWeaponCost(Weapon item)) / 1.5 + (100 - (Weapon item).health) / 5)
+    #Calculate repair cost: (ARMOR_COST / 1.5) - (100 - ARMOR_HEALTH)/5
+    elif item of Armor:
+        return int(float(getArmorCost(Armor item)) / 1.5 + (100 - (Armor item).health) / 5)
+
 #This draws in the user interface for repairing items
 proc repairItemsUI(self:var Shop, dialog:var seq[string], player:var Player, selection:int) =
     stdout.eraseScreen()
@@ -1136,15 +1145,6 @@ proc repairItemsUI(self:var Shop, dialog:var seq[string], player:var Player, sel
         else:
             return "()"
 
-    #Returns the cost of repairing the item fully
-    func repairCost(item: GameItem): int =
-        #Additional cost based on how degraded the item is
-        let repairBonus = int((100 - item.health) / 2)
-
-        if item of Weapon:
-            return getWeaponCost(Weapon item) + repairBonus
-        elif item of Armor:
-            return getArmorCost(Armor item) + repairBonus
 
     echo " ________________________________________________________________"
     echo "| Petunia ) Repair Items"
@@ -1168,7 +1168,20 @@ proc repairItemsUI(self:var Shop, dialog:var seq[string], player:var Player, sel
     else: #Otherwise give all info
         echo "| Equipped Weapon: " & player.armor.name & fmt" ({repairCost(player.armor)} gp) " & $selectionTag(2, selection)
     
-    #
+    #If there are things in the player's bag, add them
+    if len(player.inventory) > 0:
+        echo "| In your bag:"
+
+        var selIndex = 3 #Selection index starts at 3
+
+        #Go through the selection of every item, say their cost
+        for item in player.inventory:
+            echo fmt"{selIndex - 3} {item.name} ({repairCost(item)} gp) {selectionTag(selIndex, selection)}"
+    
+    #Otherwise, nothing to repair
+    else:
+        echo "| Nothing is in your bag."
+
 
     echo " ________________________________________________________________"
 
@@ -1186,6 +1199,44 @@ proc repairItems(self:var Shop, player:var Player) =
         #If player presses escape, exit menu
         if chr == '\x1b':
             break
+
+        #If scrolling up, and can do so, go one item up
+        elif chr == 'w' and selection > 1:
+            selection -= 1
+        
+        #If scrolling down, and can do so, go one item up
+        elif chr == 's' and selection < (len(player.inventory) + 2):
+            selection += 1
+        
+        #If trying to repair item (press enter)
+        elif chr == 'r':
+            var item: GameItem #The item attempting to be repaired
+
+            #If the first selection, it is the armor
+            if selection == 1:
+                item = player.armor
+            
+            #If second, we're looking at weapon
+            elif selection == 2:
+                item = player.weapon
+            
+            #Otherwise, select it from the bag
+            else:
+                item = player.inventory[selection-3]
+
+            #If the player has enough gold to repair this item
+            if not isNoneObj(item) and player.gold >= repairCost(item):
+                (Armor item).health = 100.0           #Give the item full health
+                player.gold -= repairCost(item)       #Remove cost from player
+                dialog.add fmt"Repaired {item.name}!" #Tell user it was repaired
+            
+            #Tell the user they didn't have enough gold to repair that item
+            elif not isNoneObj(item) and player.gold < repairCost(item):
+                dialog.add fmt"Not enough gold to repair {item.name}!"
+            
+            #Tell user they cannot repair nothing item
+            elif isNoneObj(item):
+                dialog.add "Can't repair nothing!"
 
 #Draw the basic UI for the toplevel menu for shops
 proc shopkeepUI*(self:var Shop) =

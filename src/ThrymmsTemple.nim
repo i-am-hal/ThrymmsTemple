@@ -6,7 +6,20 @@ Date: 9/28/2019
 ]#
 
 from times import getTime, toUnix, nanosecond
+from strutils import toLowerAscii
 import terminal, gameModes, random
+
+#The user interface for the main menu
+proc thrymmsTempleUI =
+  stdout.eraseScreen() #Clear out screen and center cursor
+  stdout.setCursorPos(0,0)
+
+  echo " ______________________________"
+  echo "| Thrymms Temple - Version 0.5 "
+  echo "|------------------------------"
+  echo "| (Q)uit                       "
+  echo "| (S)tory mode                 "
+  echo "|______________________________"
 
 #Entry point for the game
 proc main =
@@ -16,10 +29,21 @@ proc main =
   stdout.hideCursor() #Hide the cursor
   #Make all the text white before starting
   stdout.setForegroundColor(fgWhite)
-  stdout.eraseScreen() #Clear the screen before starting
-  stdout.setCursorPos(0,0)
 
-  storyMode() #Start the story mode
+  var chr = '\0' #Character input from user
+
+  #The main loop for the top level menu for the game
+  while true:
+    thrymmsTempleUI()
+    chr = getch().toLowerAscii()
+
+    #Quits game
+    if chr == 'q' or chr == '\x1b':
+      break
+    
+    #Start the story mode
+    elif chr == 's':
+      storyMode()
 
   disableTrueColors()      #Turn off true color
   stdout.showCursor()      #Show the cursor
