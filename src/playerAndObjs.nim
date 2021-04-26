@@ -5,7 +5,6 @@ and weapon and weapon.
 Author: Alastar Slater
 Date: 9/28/2019
 ]#
-
 import random, terminal, strformat, #[strutils,]# sequtils
 from strutils import toLowerAscii, splitWhiteSpace
 from math import sum
@@ -17,7 +16,6 @@ let
     #Max number of topics to ask Petunia about
     MAX_TOPIC_NUMBER = 3
 
-#The player object to be used in the game
 type
     #Parent node to all game objects
     GameObject* = ref object of RootObj

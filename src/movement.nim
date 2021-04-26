@@ -5,8 +5,6 @@ but also the basic AI for the monsters.
 Author: ALastar Slater
 Date: 9/28/2019
 ]#
-
-
 import random, terminal, strutils, strformat, playerAndObjs, floorsAndIO, monsters, debugTools
 
 #Checks if there is a character in a certain direction
@@ -365,6 +363,33 @@ proc removeDeadMobs(floor:var Floor, player:var Player) =
 
         inc(index) #Move to next monster
 
+#Returns true/false on if the player may be moving into some invisible monster.
+proc bumpInvisiblMob(floor:var Floor, player:var Player, modX=0, modY=0): bool =
+    #Make what the new position of the player will be.
+    let newPlayerPos = (player.xpos + modX, player.ypos + modY)
+    var 
+        #The current room going through
+        currRoom = (Room floor.floor[player.roomY][player.roomX])
+        #Index into the mobs list
+        index = 0
+
+    for mob in currRoom.mobs:
+        #If we found the monster that will be collided into
+        if mob.pos == newPlayerPos:
+            #If this monster is a specter, and it is not visible, make it visible
+            if mob of Specter and not (Specter mob).visible:
+                floor.moveChar(player, 'S', mob.pos[0], mob.pos[1], mob.pos[0], mob.pos[1], color=fgRed)
+                (Specter mob).chr = 'S'
+                (Specter mob).visible = true
+            
+            #Return true, will collide into some monster
+            return true
+        
+        inc(index)
+
+    #Otherwise, there will be no collision
+    return false
+
 #Deals with whatever action is associated with a keypress in the game
 proc handleKeypress*(keypress:char, dialog:var seq[string], player:var Player, floor:var Floor, done, draw:var bool, level:var int, story:bool, debug=false) =
     let key = keypress.toLowerAscii() #Make the current char lowercase
@@ -387,7 +412,7 @@ proc handleKeypress*(keypress:char, dialog:var seq[string], player:var Player, f
         #Moving up, check if theres a door, or empty space
         if key == 'w':
             #If there is an empty space, move up
-            if upEmpty(room, player.xpos, player.ypos):
+            if upEmpty(room, player.xpos, player.ypos) and not floor.bumpInvisiblMob(player, modY= -1):
                 #Move the player on screen up one space
                 floor.moveChar(player, '@', player.xpos, player.ypos, player.xpos, player.ypos-1, color=fgCyan)
                 player.ypos -= 1 #Make the player move up one space
@@ -411,7 +436,7 @@ proc handleKeypress*(keypress:char, dialog:var seq[string], player:var Player, f
         #If moving left check if there is a door or open space
         elif key == 'a':
             #If there is an open space, move there
-            if leftEmpty(room, player.xpos, player.ypos):
+            if leftEmpty(room, player.xpos, player.ypos) and not floor.bumpInvisiblMob(player, modX= -1):
                 #Move player on screen left one space
                 floor.moveChar(player, '@', player.xpos, player.ypos, player.xpos-1, player.ypos, color=fgCyan)
                 player.xpos -= 1 #Save change in x position
@@ -435,7 +460,7 @@ proc handleKeypress*(keypress:char, dialog:var seq[string], player:var Player, f
         #Move right, check if there is a door or empty space
         elif key == 'd':
             #If there is an empty space, move there
-            if rightEmpty(room, player.xpos, player.ypos):
+            if rightEmpty(room, player.xpos, player.ypos) and not floor.bumpInvisiblMob(player, modX=1):
                 #Move player right one space
                 floor.moveChar(player, '@', player.xpos, player.ypos, player.xpos+1, player.ypos, fgCyan)
                 player.xpos += 1 #Save change in x
@@ -461,7 +486,7 @@ proc handleKeypress*(keypress:char, dialog:var seq[string], player:var Player, f
         #Move down, check for door or empty space
         elif key == 's':
             #If there is empty spot, move down
-            if downEmpty(room, player.xpos, player.ypos):
+            if downEmpty(room, player.xpos, player.ypos) and not floor.bumpInvisiblMob(player, modY=1):
                 #Show movement
                 floor.moveChar(player, '@', player.xpos, player.ypos, player.xpos, player.ypos+1, fgCyan)
                 player.ypos += 1 #Save change in y
@@ -572,6 +597,4 @@ proc handleKeypress*(keypress:char, dialog:var seq[string], player:var Player, f
     if actionKeyPress == true:
         floor.roomMobMovement(player, dialog)
 
-            
-
-
+ 

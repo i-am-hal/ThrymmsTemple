@@ -8,7 +8,7 @@
 ]#
 import monsters, playerAndObjs, terminal, floorsAndIO, tables
 from strutils import splitWhiteSpace, toLowerAscii, isDigit, parseInt
-from sequtils import map, all
+#from sequtils import map, all
 
 let
     #List of all the debug commands
@@ -188,4 +188,3 @@ proc debugTerminal*(player:var Player, floor:var Floor, floorLevel:var int) =
         else:
             echo input[0] & " is not a recognized command.\n"
 
-    discard 0
